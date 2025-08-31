@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, Alert, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Switch, Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications'; // For direct cancellation if needed here, though service is preferred
 import { AdhkarReminder, AdhkarCategoryInfo } from '../types';
@@ -10,6 +10,7 @@ import Colors from '../constants/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { BellIcon, ClockIcon, SparklesIcon } from '../components/Icons';
 import { RFValue } from 'react-native-responsive-fontsize';
+import TimePickerModal from '../components/TimePickerModal';
 
 const AnyFlatList = FlatList as any;
 
@@ -28,6 +29,10 @@ const AdhkarRemindersScreen: React.FC = () => {
   const [reminders, setReminders] = useState<AdhkarReminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [availableCategories] = useState<AdhkarCategoryInfo[]>(getAdhkarCategoriesForReminders());
+
+  const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
+  const [reminderToEdit, setReminderToEdit] = useState<AdhkarReminder | null>(null);
+
 
   const loadReminders = useCallback(async () => {
     setLoading(true);
@@ -95,44 +100,35 @@ const AdhkarRemindersScreen: React.FC = () => {
 
   const handleChangeTime = (categoryId: string) => {
     const reminder = reminders.find(r => r.categoryId === categoryId);
-    if (!reminder) return;
+    if (reminder) {
+      setReminderToEdit(reminder);
+      setIsTimePickerVisible(true);
+    }
+  };
 
-    Alert.prompt(
-      `ضبط وقت تذكير ${reminder.categoryName}`,
-      "أدخل الوقت بصيغة HH:MM (نظام 24 ساعة)",
-      [
-        { text: "إلغاء", style: "cancel" },
-        {
-          text: "ضبط",
-          onPress: async (timeInput) => {
-            if (timeInput) {
-              const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-              if (timeRegex.test(timeInput)) {
-                const reminderIndex = reminders.findIndex(r => r.categoryId === categoryId);
-                if (reminderIndex === -1) return;
-
-                const updatedReminders = [...reminders];
-                const reminderToUpdate = { ...updatedReminders[reminderIndex], time: timeInput, isEnabled: true }; // Enable if time is set
-
-                if (reminderToUpdate.notificationId) {
-                  await cancelAdhkarReminder(reminderToUpdate.notificationId);
-                }
-                const newNotificationId = await scheduleAdhkarReminder(reminderToUpdate);
-                reminderToUpdate.notificationId = newNotificationId || undefined;
-                
-                updatedReminders[reminderIndex] = reminderToUpdate;
-                saveReminders(updatedReminders);
-
-              } else {
-                Alert.alert("صيغة خاطئة", "الرجاء إدخال الوقت بصيغة HH:MM الصحيحة (مثال: 07:00 أو 18:30).");
-              }
-            }
-          },
-        },
-      ],
-      "plain-text",
-      reminder.time // Default value in prompt
-    );
+  const handleTimeSelected = async (timeInput: string) => {
+    if (reminderToEdit) {
+      const reminderIndex = reminders.findIndex(r => r.categoryId === reminderToEdit.categoryId);
+      if (reminderIndex === -1) return;
+  
+      const updatedReminders = [...reminders];
+      // Also enable the reminder when a new time is set
+      const reminderToUpdate = { ...updatedReminders[reminderIndex], time: timeInput, isEnabled: true };
+  
+      // Cancel old notification
+      if (reminderToUpdate.notificationId) {
+        await cancelAdhkarReminder(reminderToUpdate.notificationId);
+      }
+      // Schedule new one
+      const newNotificationId = await scheduleAdhkarReminder(reminderToUpdate);
+      reminderToUpdate.notificationId = newNotificationId || undefined;
+      
+      updatedReminders[reminderIndex] = reminderToUpdate;
+      saveReminders(updatedReminders);
+    }
+    // Reset state
+    setReminderToEdit(null);
+    setIsTimePickerVisible(false);
   };
   
   const renderReminderItem = ({ item }: { item: AdhkarReminder }) => (
@@ -181,6 +177,15 @@ const AdhkarRemindersScreen: React.FC = () => {
         ListEmptyComponent={<Text style={styles.emptyListText}>لا توجد فئات أذكار متاحة للتذكير.</Text>}
         contentContainerStyle={styles.listContent}
       />
+        <TimePickerModal
+            isVisible={isTimePickerVisible}
+            onClose={() => {
+                setIsTimePickerVisible(false);
+                setReminderToEdit(null);
+            }}
+            onTimeSelect={handleTimeSelected}
+            initialTime={reminderToEdit?.time}
+        />
     </View>
   );
 };

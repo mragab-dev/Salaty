@@ -1,5 +1,5 @@
 
-import 'dotenv/config';
+
 
 export default {
   expo: {
@@ -22,14 +22,37 @@ export default {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.quadrovexa.salaty" // Replace with your bundle ID
+      bundleIdentifier: "com.quadravexa.salaty" // Replace with your bundle ID
     },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png", // Ensure you have this icon
         backgroundColor: "#1A2F45"
       },
-      package: "com.quadrovexa.salaty" // Replace with your package name
+      package: "com.quadravexa.salaty", // Replace with your package name
+      permissions: [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        // Added for better reliability on some devices, may require justification for Play Store
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+      ],
+      // إضافة إعدادات مهمة للإشعارات
+      allowBackup: true,
+      allowClearUserData: false,
+      // إضافة إعدادات للصوت
+      audio: {
+        "android:hardwareAccelerated": "true"
+      }
     },
     web: {
       favicon: "./assets/favicon.png" // Ensure you have this favicon
@@ -51,10 +74,20 @@ export default {
           {
             "icon": "./assets/notification-icon.png", // Ensure you have a 96x96 notification icon
             "color": "#C4A052", // Notification color
-            "sounds": [ // For custom Adhan sounds if you bundle them locally
+            "sounds": [ // This ensures the sound files are bundled in the native build
                 "./assets/sounds/adhan_makki.mp3",
                 "./assets/sounds/adhan_kurdi.mp3"
-            ]
+            ],
+            "mode": "production",
+            "androidMode": "default",
+            "androidCollapsedTitle": "صلاتي - Salaty"
+          }
+        ],
+        [
+          "expo-av",
+          {
+            "microphonePermission": false,
+            "cameraPermission": false
           }
         ]
     ]

@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     lineHeight: RFValue(28),
     textAlign: 'center',
     color: Colors.arabicText,
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'),
+    fontFamily: 'AmiriQuran-Regular',
     marginBottom: RFValue(8),
   },
   ayahReference: {

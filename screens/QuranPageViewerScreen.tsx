@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Share, Linking, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Share, Linking, TextInput, Alert, PanResponder, Animated } from 'react-native';
 import { useRoute, RouteProp, useNavigation, NavigationProp, useIsFocused } from '@react-navigation/native'; 
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,11 +11,13 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AyahActionSheet from '../components/AyahActionSheet';
 import SettingsActionSheet, { QuranSettingsAction } from '../components/SettingsActionSheet'; 
 import { ChevronDownIcon, ChevronUpIcon, PlayIcon, PauseIcon, EllipsisVerticalIcon, RepeatIcon, CloseIcon as ClearIcon, EyeIcon, EyeOffIcon, StopCircleIcon } from '../components/Icons'; 
-import { TOTAL_QURAN_PAGES, ASYNC_STORAGE_BOOKMARKS_KEY, ASYNC_STORAGE_FONT_SIZE_KEY } from '../constants';
+import { TOTAL_QURAN_PAGES, ASYNC_STORAGE_BOOKMARKS_KEY, ASYNC_STORAGE_FONT_SIZE_KEY, ASYNC_STORAGE_LAST_READ_PAGE_KEY } from '../constants';
 import Colors from '../constants/colors';
 import { AVPlaybackStatus } from 'expo-av'; 
 import { QuranStackParamList, MemorizationTestParams } from '../App'; 
 import { logActivity, hasLoggedToday } from '../services/activityLogService';
+import { RFValue } from 'react-native-responsive-fontsize';
+import Svg, { Path, Defs, Pattern, Rect } from 'react-native-svg';
 
 type QuranPageViewerRouteProp = RouteProp<QuranStackParamList, 'QuranPageViewer'>; 
 
@@ -32,6 +34,7 @@ interface TestModeState {
   revealed: boolean;
   currentTestSurahName?: string; 
   currentTestRangeString?: string; 
+  hiddenIndices: Map<number, Set<number>>;
 }
 
 interface SurahPlaybackInfo {
@@ -55,8 +58,6 @@ const QuranPageViewerScreen: React.FC = () => {
   const [selectedAyah, setSelectedAyah] = useState<Ayah | null>(null);
   
   const [bookmarkedAyahs, setBookmarkedAyahs] = useState<Set<number>>(new Set());
-  const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
-  const [initialFontSizeLoaded, setInitialFontSizeLoaded] = useState(false);
   const [initialBookmarksLoaded, setInitialBookmarksLoaded] = useState(false);
 
   const [isTafseerApiModalVisible, setIsTafseerApiModalVisible] = useState(false);
@@ -68,7 +69,6 @@ const QuranPageViewerScreen: React.FC = () => {
   const [pendingSurahPlayback, setPendingSurahPlayback] = useState<Ayah | null>(null);
   const ayahToResumeRef = useRef<{ surah: number; ayah: number } | null>(null);
 
-
   const [repetitionSettings, setRepetitionSettings] = useState<RepetitionSettings>({ startAyah: null, endAyah: null, count: 3 });
   const [isRepetitionPlaying, setIsRepetitionPlaying] = useState(false);
   const [currentRepeatingAyah, setCurrentRepeatingAyah] = useState<Ayah | null>(null);
@@ -77,6 +77,88 @@ const QuranPageViewerScreen: React.FC = () => {
   const [testModeState, setTestModeState] = useState<TestModeState | null>(null);
   
   const hasNavigatedRef = useRef(false); // Ref to track if user has changed pages
+  
+  // --- State for Pinch-to-Zoom ---
+  const [fontSizeScale, setFontSizeScale] = useState<number>(1.0);
+  const [isPinching, setIsPinching] = useState(false);
+  const pinchRef = useRef({ initialDistance: 0, initialScale: 1 }).current;
+
+  // --- PanResponder for Pinch-to-Zoom ---
+  const panResponder = useRef(
+    PanResponder.create({
+        onStartShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2,
+        onMoveShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2,
+        onPanResponderGrant: (evt) => {
+            setIsPinching(true);
+            const [t1, t2] = evt.nativeEvent.touches;
+            const distance = Math.sqrt(Math.pow(t2.pageX - t1.pageX, 2) + Math.pow(t2.pageY - t1.pageY, 2));
+            pinchRef.initialDistance = distance;
+            pinchRef.initialScale = fontSizeScale;
+        },
+        onPanResponderMove: (evt, gestureState) => {
+            if (evt.nativeEvent.touches.length < 2) return;
+            const [t1, t2] = evt.nativeEvent.touches;
+            const distance = Math.sqrt(Math.pow(t2.pageX - t1.pageX, 2) + Math.pow(t2.pageY - t1.pageY, 2));
+            const scale = distance / pinchRef.initialDistance;
+            let newScale = pinchRef.initialScale * scale;
+            newScale = Math.max(0.7, Math.min(newScale, 1.5)); // Clamp the scale
+            setFontSizeScale(newScale);
+        },
+        onPanResponderRelease: () => {
+            setIsPinching(false);
+            AsyncStorage.setItem(ASYNC_STORAGE_FONT_SIZE_KEY, fontSizeScale.toString());
+        },
+        onPanResponderTerminationRequest: () => true,
+    })
+  ).current;
+
+  const { targetSurahIdentifier, targetVerseNumber } = route.params || {};
+
+  // New useEffect to handle navigation from chatbot
+  useEffect(() => {
+    const navigateToTargetAyah = () => {
+        // Ensure all data is loaded and params are present
+        if (!isFocused || !targetSurahIdentifier || !targetVerseNumber || !allAyahs.length || !surahList.length) {
+            return;
+        }
+
+        console.log(`Attempting to navigate to target: ${targetSurahIdentifier}:${targetVerseNumber}`);
+
+        // Find the surah using identifier (can be name or number)
+        const surahInfo = surahList.find(s => 
+            s.id.toString() === targetSurahIdentifier.toString() || 
+            s.name_arabic === targetSurahIdentifier || 
+            s.name_english.toLowerCase() === targetSurahIdentifier.toString().toLowerCase()
+        );
+
+        if (!surahInfo) {
+            Alert.alert("خطأ", `لم نتمكن من العثور على سورة "${targetSurahIdentifier}".`);
+            // Clear params to prevent re-triggering
+            navigation.setParams({ targetSurahIdentifier: undefined, targetVerseNumber: undefined } as any);
+            return;
+        }
+
+        // Find the specific ayah
+        const targetAyah = allAyahs.find(a => 
+            a.surah_number === surahInfo.id && 
+            a.verse_number === targetVerseNumber
+        );
+
+        if (targetAyah) {
+            setCurrentPage(targetAyah.page);
+            setHighlightedAyahId(targetAyah.id);
+            // Clear the params to prevent this from running again on re-focus
+            navigation.setParams({ targetSurahIdentifier: undefined, targetVerseNumber: undefined } as any);
+        } else {
+            Alert.alert("خطأ", `لم نتمكن من العثور على الآية ${targetVerseNumber} في سورة ${surahInfo.name_arabic}.`);
+            // Clear params anyway
+            navigation.setParams({ targetSurahIdentifier: undefined, targetVerseNumber: undefined } as any);
+        }
+    };
+
+    navigateToTargetAyah();
+    // This effect should run when the screen is focused or when the target parameters change
+  }, [isFocused, targetSurahIdentifier, targetVerseNumber, allAyahs, surahList, navigation]);
 
   const handleEndMemorizationTest = useCallback(() => {
     if (testModeState?.isActive) {
@@ -94,89 +176,28 @@ const QuranPageViewerScreen: React.FC = () => {
     setTestModeState(null);
   }, [testModeState]);
 
-  const playNextInRepetitionQueue = useCallback(async () => {
-    // This function is for ayah-by-ayah repetition, not surah playback.
-    if (repetitionQueueRef.current.length > 0) {
-        const nextToPlay = repetitionQueueRef.current.shift(); 
-        if (nextToPlay) {
-            setCurrentRepeatingAyah(nextToPlay); 
-            setHighlightedAyahId(nextToPlay.id); 
-            // This needs a single-ayah play method, which we are removing.
-            // For now, this feature will be implicitly disabled by UI changes.
-            // await audioService.playAudio(nextToPlay.surah_number, nextToPlay.verse_number);
-        } else { 
-            setIsRepetitionPlaying(false);
-            setCurrentRepeatingAyah(null);
-            setHighlightedAyahId(null);
+  useEffect(() => {
+    const savePage = async () => {
+        if (!isFocused && hasNavigatedRef.current) { 
+            try {
+                await AsyncStorage.setItem(ASYNC_STORAGE_LAST_READ_PAGE_KEY, currentPage.toString());
+                console.log(`Saved last read page: ${currentPage}`);
+            } catch (e) {
+                console.error("Failed to save last read page", e);
+            }
         }
-    } else {
-        setIsRepetitionPlaying(false);
-        setCurrentRepeatingAyah(null);
-        setHighlightedAyahId(null);
+    };
+    savePage();
+  }, [isFocused, currentPage]);
+
+  useEffect(() => {
+    if (isFocused) {
+        const newCurrentReciter = audioService.getCurrentReciter();
+        if (newCurrentReciter?.id !== currentReciter?.id) {
+            setCurrentReciter(newCurrentReciter);
+        }
     }
-  }, []);
-
-
-    useEffect(() => {
-        if (isFocused) {
-            const newCurrentReciter = audioService.getCurrentReciter();
-            
-            // Case 1: Reciter has changed and we need to resume playback
-            if (newCurrentReciter && currentReciter && newCurrentReciter.id !== currentReciter.id && ayahToResumeRef.current) {
-                setCurrentReciter(newCurrentReciter); // Update state with new reciter
-                
-                const { surah, ayah } = ayahToResumeRef.current;
-                const surahInfo = surahList.find(s => s.id === surah);
-                
-                // Set playback info for UI
-                setSurahPlaybackInfo({
-                    surahNumber: surah,
-                    surahName: surahInfo?.name_arabic || `سورة ${surah}`
-                });
-                
-                // Resume playback from stored position
-                audioService.playSurah(surah, ayah);
-                
-                // Clear the ref
-                ayahToResumeRef.current = null;
-                return; // Exit effect early
-            }
-    
-            // Just update the reciter if it has changed for any other reason
-            if (newCurrentReciter?.id !== currentReciter?.id) {
-                setCurrentReciter(newCurrentReciter);
-            }
-    
-            // A pending playback was set because no reciter was chosen initially
-            if (pendingSurahPlayback && newCurrentReciter) {
-                console.log("Reciter selected, now starting pending surah playback for:", pendingSurahPlayback.surah_number);
-                handlePlaySurah(pendingSurahPlayback);
-                setPendingSurahPlayback(null);
-                navigation.setParams({ ayahToPlayAfterReciterSelection: undefined } as any);
-            } else { // Deep link navigation
-                const { targetSurahIdentifier, targetVerseNumber } = route.params || {};
-                if (targetSurahIdentifier && targetVerseNumber && allAyahs.length > 0 && surahList.length > 0) {
-                   console.log(`Navigating to Surah: ${targetSurahIdentifier}, Verse: ${targetVerseNumber}`);
-                   let surahIdToFind: number | undefined;
-                   if (typeof targetSurahIdentifier === 'number') {
-                       surahIdToFind = targetSurahIdentifier;
-                   } else {
-                       const foundSurah = surahList.find(s => s.name_arabic === targetSurahIdentifier || s.name_english.toLowerCase() === targetSurahIdentifier.toLowerCase() || s.id.toString() === targetSurahIdentifier);
-                       surahIdToFind = foundSurah?.id;
-                   }
-           
-                   if (surahIdToFind) {
-                       const targetAyah = allAyahs.find(a => a.surah_number === surahIdToFind && a.verse_number === targetVerseNumber);
-                       if (targetAyah) {
-                           setCurrentPage(targetAyah.page);
-                       }
-                   }
-                   navigation.setParams({ targetSurahIdentifier: undefined, targetVerseNumber: undefined } as any);
-                }
-            }
-        }
-    }, [isFocused, route.params, allAyahs, surahList, currentReciter, pendingSurahPlayback, navigation]);
-
+  }, [isFocused, audioService]);
 
 
   useEffect(() => {
@@ -201,32 +222,20 @@ const QuranPageViewerScreen: React.FC = () => {
   }, [bookmarkedAyahs, initialBookmarksLoaded]);
 
   useEffect(() => {
+    if (route.params?.bookmarkedAyahs) {
+        setBookmarkedAyahs(new Set(route.params.bookmarkedAyahs));
+    }
+  }, [route.params?.bookmarkedAyahs]);
+
+  useEffect(() => {
     const loadFontSize = async () => {
       try {
         const storedScale = await AsyncStorage.getItem(ASYNC_STORAGE_FONT_SIZE_KEY);
         if (storedScale) { const scale = parseFloat(storedScale); if (!isNaN(scale)) setFontSizeScale(scale); }
       } catch (e) { console.error("Failed to load font size:", e); } 
-      finally { setInitialFontSizeLoaded(true); }
     };
     loadFontSize();
   }, []);
-
-  useEffect(() => {
-    if (initialFontSizeLoaded) {
-      const saveFontSize = async () => {
-        try { await AsyncStorage.setItem(ASYNC_STORAGE_FONT_SIZE_KEY, fontSizeScale.toString()); }
-        catch (e) { console.error("Failed to save font size:", e); }
-      };
-      saveFontSize();
-    }
-  }, [fontSizeScale, initialFontSizeLoaded]);
-
-  useEffect(() => {
-    if (route.params?.bookmarkedAyahs && route.params.bookmarkedAyahs !== bookmarkedAyahs ) {
-        setBookmarkedAyahs(route.params.bookmarkedAyahs);
-    }
-  }, [route.params?.bookmarkedAyahs, bookmarkedAyahs]);
-
 
   useEffect(() => {
     const testParams = route.params?.testParams;
@@ -248,34 +257,12 @@ const QuranPageViewerScreen: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      // Reload font size when returning from FontSizeSettings
-      const loadFontSize = async () => {
-        try {
-          const storedScale = await AsyncStorage.getItem(ASYNC_STORAGE_FONT_SIZE_KEY);
-          if (storedScale) { 
-            const scale = parseFloat(storedScale); 
-            if (!isNaN(scale)) setFontSizeScale(scale); 
-          }
-        } catch (e) { 
-          console.error("Failed to load font size:", e); 
-        }
-      };
-      loadFontSize();
-    });
-
-    return unsubscribe;
-  }, [navigation]);
-
-
   const handleNavigateFromMenu = (screen: QuranSettingsAction) => {
     setSettingsMenuVisible(false); 
     switch (screen) {
       case 'Index': navigation.navigate('QuranIndex'); break;
-      case 'Bookmarks': navigation.navigate('Bookmarks', { bookmarkedAyahs: bookmarkedAyahs, allAyahs: allAyahs }); break;
+      case 'Bookmarks': navigation.navigate('Bookmarks', { bookmarkedAyahs: Array.from(bookmarkedAyahs), surahList: surahList }); break;
       case 'Downloads': navigation.navigate('AudioDownload'); break;
-      case 'FontSize': navigation.navigate('FontSizeSettings', { currentScale: fontSizeScale }); break;
       case 'MemorizationTest': navigation.navigate('MemorizationSetup'); break; 
     }
   };
@@ -283,8 +270,8 @@ const QuranPageViewerScreen: React.FC = () => {
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={() => setSettingsMenuVisible(true)} style={{ paddingHorizontal: 15, paddingVertical: 5 }}>
-          <EllipsisVerticalIcon color={Colors.secondary} size={26} />
+        <TouchableOpacity onPress={() => setSettingsMenuVisible(true)} style={{ paddingHorizontal: RFValue(15), paddingVertical: RFValue(5) }}>
+          <EllipsisVerticalIcon color={Colors.secondary} size={RFValue(26)} />
         </TouchableOpacity>
       ),
       title: `القرآن الكريم - صفحة ${currentPage}`,
@@ -307,7 +294,7 @@ const QuranPageViewerScreen: React.FC = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    const handleVerseChange = (info: { surah: number, ayah: number } | null) => {
+    const handleVerseChange = (info: { surah: number; ayah: number } | null) => {
       if (info) {
         const currentAyah = allAyahs.find(a => a.surah_number === info.surah && a.verse_number === info.ayah);
         
@@ -336,57 +323,72 @@ const QuranPageViewerScreen: React.FC = () => {
 
   const ayahsOnCurrentPage = useMemo(() => {
     if (!allAyahs.length) return [];
-    const ayahs = getAyahsForPageNumber(currentPage, allAyahs);
-    return ayahs.map(ayah => {
-        const isCurrentTestAyah = testModeState?.isActive && testModeState.ayahsToTest.some(testAyah => testAyah.id === ayah.id);
-        return {
-            ...ayah,
-            isHighlighted: ayah.id === highlightedAyahId || isCurrentTestAyah, 
-            isBookmarked: bookmarkedAyahs.has(ayah.id), 
-        };
-    });
-  }, [currentPage, allAyahs, highlightedAyahId, bookmarkedAyahs, testModeState]);
-
+    return getAyahsForPageNumber(currentPage, allAyahs);
+  }, [currentPage, allAyahs]);
 
   const pageMetadata = useMemo(() => {
     if (!ayahsOnCurrentPage.length || !surahList.length) return { surahsOnPage: [], juzNumber: undefined };
-    const rawAyahsOnPage = getAyahsForPageNumber(currentPage, allAyahs); 
-    return getPageMetadata(currentPage, rawAyahsOnPage, surahList);
-  }, [currentPage, allAyahs, surahList, ayahsOnCurrentPage.length]);
+    return getPageMetadata(currentPage, ayahsOnCurrentPage, surahList);
+  }, [currentPage, ayahsOnCurrentPage, surahList]);
+  
+  const generateHiddenIndices = (text: string, difficultyRatio: number): Set<number> => {
+    const words = text.split(/\s+/).filter(Boolean); 
+    const numWordsToHide = Math.floor(words.length * difficultyRatio);
+    const indices = new Set<number>();
+    if (words.length === 0 || numWordsToHide === 0) return indices;
+    while (indices.size < numWordsToHide) { const randomIndex = Math.floor(Math.random() * words.length); indices.add(randomIndex); }
+    return indices;
+  };
 
   const handleStartMemorizationTest = async (params: MemorizationTestParams) => {
-    audioService.stopAudio();   
-
-    const { difficulty, surahId, startAyahNumber, endAyahNumber } = params;
-    let ratio = 0.2; 
+    audioService.stopAudio();
+  
+    const { difficulty, surahId, startAyahNumber, endAyahNumber, testMode } = params;
+  
+    if (testMode === 'audio') {
+      Alert.alert(
+        "ميزة قيد التطوير",
+        "الاختبار الصوتي للتسميع ميزة سيتم إضافتها في التحديثات القادمة إن شاء الله.",
+        [{ text: "حسنًا", onPress: () => setTestModeState(null) }]
+      );
+      return;
+    }
+  
+    // Visual test logic
+    let ratio = 0.2;
     if (difficulty === 'medium') ratio = 0.4;
     else if (difficulty === 'hard') ratio = 0.6;
-
+  
     try {
-      setLoading(true); 
+      setLoading(true);
       const surahForTest = await fetchAyahsForSingleSurah(surahId);
       const ayahsForTestSetup = surahForTest.filter(
         ayah => ayah.verse_number >= startAyahNumber && ayah.verse_number <= endAyahNumber
       );
-
+  
       if (ayahsForTestSetup.length === 0) {
         setError("لم يتم العثور على آيات لنطاق الاختبار المحدد.");
         setTestModeState(null);
         setLoading(false);
         return;
       }
-      
+  
       const surahInfo = surahList.find(s => s.id === surahId);
-      
+      const hiddenIndicesMap = new Map<number, Set<number>>();
+      ayahsForTestSetup.forEach(ayah => {
+        hiddenIndicesMap.set(ayah.id, generateHiddenIndices(ayah.text, ratio));
+      });
+  
       setTestModeState({
         isActive: true,
-        ayahsToTest: ayahsForTestSetup, 
+        ayahsToTest: ayahsForTestSetup,
         difficultyRatio: ratio,
         revealed: false,
         currentTestSurahName: surahInfo?.name_arabic || `سورة ${surahId}`,
-        currentTestRangeString: `آيات ${startAyahNumber}-${endAyahNumber}`
+        currentTestRangeString: `آيات ${startAyahNumber}-${endAyahNumber}`,
+        hiddenIndices: hiddenIndicesMap,
       });
-
+  
       const firstTestAyah = ayahsForTestSetup[0];
       if (firstTestAyah && firstTestAyah.page !== currentPage) {
         setCurrentPage(firstTestAyah.page);
@@ -399,39 +401,8 @@ const QuranPageViewerScreen: React.FC = () => {
     }
   };
 
-
   const handleToggleRevealTest = () => { setTestModeState(prev => (prev ? { ...prev, revealed: !prev.revealed } : null)); };
   
-
-  const renderAyahTextWithTest = (ayah: Ayah, baseFontSize: number) => {
-    if (testModeState?.isActive && testModeState.ayahsToTest.some(testAyah => testAyah.id === ayah.id)) {
-      const words = ayah.text.split(/(\s+)/); 
-      return words.map((word, index) => {
-        const actualWordIndex = words.slice(0, index + 1).filter(w => w.trim() !== '').length -1;
-        const hiddenIndicesForThisAyah = generateHiddenIndices(ayah.text, testModeState.difficultyRatio);
-
-        if (word.trim() !== '' && hiddenIndicesForThisAyah.has(actualWordIndex) && !testModeState.revealed) {
-          return (
-            <Text key={index} style={[styles.mushafAyahText, { fontSize: baseFontSize }, styles.hiddenWordPlaceholder]}>
-              {word.replace(/./g, 'ـ')}
-            </Text>
-          );
-        }
-        return ( <Text key={index} style={[styles.mushafAyahText, { fontSize: baseFontSize }]}>{word}</Text> );
-      });
-    }
-    return <Text style={[styles.mushafAyahText, { fontSize: baseFontSize }]}>{ayah.text}</Text>;
-  };
-
-  const generateHiddenIndices = (text: string, difficultyRatio: number): Set<number> => {
-    const words = text.split(/\s+/).filter(Boolean); 
-    const numWordsToHide = Math.floor(words.length * difficultyRatio);
-    const indices = new Set<number>();
-    if (words.length === 0 || numWordsToHide === 0) return indices;
-    while (indices.size < numWordsToHide) { const randomIndex = Math.floor(Math.random() * words.length); indices.add(randomIndex); }
-    return indices;
-  };
-
   const handleNextPage = () => { 
     if (currentPage < TOTAL_QURAN_PAGES) { 
       hasNavigatedRef.current = true;
@@ -498,13 +469,91 @@ const QuranPageViewerScreen: React.FC = () => {
     return surahInfo?.name_arabic || `سورة ${ayah.surah_number}`;
   };
 
+  const groupedAyahs = useMemo(() => {
+    const groups: { [key: number]: Ayah[] } = {};
+    ayahsOnCurrentPage.forEach(ayah => {
+        if (!groups[ayah.surah_number]) {
+            groups[ayah.surah_number] = [];
+        }
+        groups[ayah.surah_number].push(ayah);
+    });
+    return Object.entries(groups).map(([surahNum, ayahs]) => ({
+        surahNumber: parseInt(surahNum, 10),
+        ayahs: ayahs,
+    }));
+  }, [ayahsOnCurrentPage]);
+  
+  const baseFontSize = RFValue(Platform.OS === 'ios' ? 26 : 24);
+  const scaledFontSize = baseFontSize * fontSizeScale;
+
+  const renderTestContent = () => {
+    if (!testModeState) return null;
+
+    // Filter ayahs to only those on the current page to prevent rendering huge lists.
+    const ayahsForThisPage = testModeState.ayahsToTest.filter(
+        (ayah) => ayah.page === currentPage
+    );
+
+    if (ayahsForThisPage.length === 0) {
+        // This view is shown if the user navigates to a page outside the test range.
+        return (
+            <View style={[styles.centeredMessage, styles.mushafPageContent]}>
+                <Text style={styles.centeredMessageText}>
+                    أنت حاليًا خارج نطاق الاختبار.
+                </Text>
+                <Text style={styles.centeredMessageText}>
+                    يبدأ الاختبار من صفحة {testModeState.ayahsToTest[0]?.page}.
+                </Text>
+            </View>
+        );
+    }
+
+    return (
+      <View style={styles.mushafPageContent}>
+        <Text style={[styles.ayahTextFlow, { lineHeight: scaledFontSize * 1.9 }]}>
+          {ayahsForThisPage.map(ayah => {
+            if (testModeState.revealed) {
+              return (
+                <Text key={ayah.id}>
+                  <Text style={{ fontSize: scaledFontSize }}>{ayah.text}</Text>
+                  <Text style={[styles.mushafVerseNumber, { fontSize: scaledFontSize * 0.8 }]}>
+                    {` \uFD3F${ayah.verse_number}\uFD3E`}
+                  </Text>
+                  {' '}
+                </Text>
+              );
+            }
+            const words = ayah.text.split(/(\s+)/); // Split while keeping spaces for layout
+            const hiddenIndices = testModeState.hiddenIndices.get(ayah.id) || new Set();
+            let wordIndex = -1;
+            
+            return (
+              <Text key={ayah.id}>
+                {words.map((word, i) => {
+                  if (word.trim().length > 0) {
+                    wordIndex++;
+                    if (hiddenIndices.has(wordIndex)) {
+                      return <Text key={i} style={[styles.hiddenWord, { fontSize: scaledFontSize }]}>{'─'.repeat(word.length)}</Text>;
+                    }
+                  }
+                  return <Text key={i} style={{ fontSize: scaledFontSize }}>{word}</Text>;
+                })}
+                <Text style={[styles.mushafVerseNumber, { fontSize: scaledFontSize * 0.8 }]}>
+                    {` \uFD3F${ayah.verse_number}\uFD3E`}
+                </Text>
+                {' '}
+              </Text>
+            );
+          })}
+        </Text>
+      </View>
+    );
+  };
+  
 
   if (loading && !allAyahs.length) return <LoadingSpinner text="جاري تحميل بيانات المصحف..." style={styles.centeredMessage} color={Colors.primary} />;
   if (error && !testModeState?.isActive) return <View style={styles.centeredMessage}><Text style={styles.errorText}>{error}</Text><TouchableOpacity onPress={loadData} style={styles.retryButton}><Text style={styles.retryButtonText}>إعادة المحاولة</Text></TouchableOpacity></View>;
   
-  const getBismillahForPageStart = () => { const firstAyahOnPage = ayahsOnCurrentPage[0]; if (firstAyahOnPage && firstAyahOnPage.verse_number === 1 && firstAyahOnPage.surah_number !== 1 && firstAyahOnPage.surah_number !== 9) return "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"; return null; };
-  const baseFontSize = Platform.OS === 'ios' ? 26 : 24;
-  const scaledFontSize = baseFontSize * fontSizeScale;
 
   return (
     <View style={styles.screenContainer}>
@@ -513,46 +562,60 @@ const QuranPageViewerScreen: React.FC = () => {
         {pageMetadata.juzNumber && <Text style={styles.pageHeaderText}>الجزء: {pageMetadata.juzNumber}</Text>}
       </View>
       
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
-         {ayahsOnCurrentPage.length === 0 && !loading && <Text style={styles.centeredMessageText}>لا توجد آيات لعرضها لهذه الصفحة.</Text>}
-        {getBismillahForPageStart() && currentPage !== 1 && <Text style={[styles.bismillahPageStart, { fontSize: scaledFontSize * 0.9 }]}>{getBismillahForPageStart()}</Text>}
-        
-        <View style={styles.mushafTextContainer}>
-          {ayahsOnCurrentPage.map((ayah, index) => {
-            const displaySurahNameHeader = ayah.verse_number === 1 && ayah.surah_number !== 1 && (index === 0 || (index > 0 && ayahsOnCurrentPage[index-1]?.surah_number !== ayah.surah_number));
-            let surahNameForHeader: string | null = null;
-            if (displaySurahNameHeader) {
-                const surahInfo = surahList.find(s => s.id === ayah.surah_number);
-                surahNameForHeader = surahInfo ? surahInfo.name_arabic : null;
-            }
-            const displayBismillahBeforeAyah = ayah.verse_number === 1 && ayah.surah_number !== 1 && ayah.surah_number !== 9 && (index === 0 || (index > 0 && ayahsOnCurrentPage[index-1]?.surah_number !== ayah.surah_number));
+      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+        <ScrollView contentContainerStyle={styles.scrollViewContent} scrollEnabled={!isPinching}>
+            {ayahsOnCurrentPage.length === 0 && !loading && !testModeState?.isActive && <Text style={styles.centeredMessageText}>لا توجد آيات لعرضها لهذه الصفحة.</Text>}
             
-            const isBookmarked = bookmarkedAyahs.has(ayah.id);
-            const isCurrentTestAyah = testModeState?.isActive && testModeState.ayahsToTest.some(testAyah => testAyah.id === ayah.id);
-            
-            return (
-            <React.Fragment key={ayah.id}>
-                {surahNameForHeader && (
-                    <View style={styles.inlineSurahHeaderContainer}>
-                        <Text style={[styles.inlineSurahNameText, { fontSize: scaledFontSize * 1.1 }]}>
-                            سورة {surahNameForHeader}
-                        </Text>
-                    </View>
-                )}
-                {displayBismillahBeforeAyah && <Text style={[styles.bismillahInText, { fontSize: scaledFontSize * 0.9 }]}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>}
-                <Text
-                    style={[ styles.mushafAyahText, { lineHeight: scaledFontSize * (Platform.OS === 'ios' ? 1.7 : 1.8) }, (ayah.isHighlighted) && styles.highlightedAyah, isCurrentTestAyah && styles.testAyahHighlight ]} 
-                    onPress={() => openAyahActionSheet(ayah)} 
-                >
-                    {isCurrentTestAyah ? renderAyahTextWithTest(ayah, scaledFontSize) : <Text style={{fontSize: scaledFontSize}}>{ayah.text}</Text>}
-                    <Text style={[ styles.mushafVerseNumber, { fontSize: scaledFontSize * 0.8 }, isBookmarked && styles.bookmarkedVerseNumber ]}>{` \uFD3F${ayah.verse_number}\uFD3E`}</Text>
-                    {index < ayahsOnCurrentPage.length - 1 ? ' ' : ''}
-                </Text>
-            </React.Fragment>
-            )
-          })}
-        </View>
-      </ScrollView>
+            {testModeState?.isActive ? renderTestContent() : (
+              <View style={styles.mushafPageContent}>
+                  {groupedAyahs.map(({ surahNumber, ayahs }) => {
+                      const surahInfo = surahList.find(s => s.id === surahNumber);
+                      const isFirstAyahInGroup = ayahs[0].verse_number === 1;
+                      const displaySurahHeader = isFirstAyahInGroup && surahInfo;
+                      const displayBismillah = isFirstAyahInGroup && surahNumber !== 1 && surahNumber !== 9;
+
+                      return (
+                          <React.Fragment key={surahNumber}>
+                              {displaySurahHeader && (
+                                  <View style={styles.surahHeaderOuterContainer}>
+                                      <View style={styles.surahHeaderInnerContainer}>
+                                          <Text style={styles.surahHeaderInfoText}>{surahInfo.total_verses} آيات</Text>
+                                          <Text style={[styles.surahHeaderNameText, { fontSize: scaledFontSize * 1.2 }]}>سورة {surahInfo.name_arabic}</Text>
+                                          <Text style={styles.surahHeaderInfoText}>{surahInfo.revelation_type === 'Meccan' ? 'مكية' : 'مدنية'}</Text>
+                                      </View>
+                                  </View>
+                              )}
+                              {displayBismillah && (
+                                  <View style={styles.bismillahContainer}>
+                                      <Text style={[styles.bismillahText, { fontSize: scaledFontSize * 1.1 }]}>
+                                          بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+                                      </Text>
+                                  </View>
+                              )}
+                              <Text style={[styles.ayahTextFlow, { lineHeight: scaledFontSize * 1.9 }]}>
+                                  {ayahs.map(ayah => (
+                                      <Text key={ayah.id} onPress={() => openAyahActionSheet(ayah)} style={[highlightedAyahId === ayah.id && styles.highlightedAyah]}>
+                                          <Text style={{ fontSize: scaledFontSize }}>{ayah.text}</Text>
+                                          <Text style={[styles.mushafVerseNumber, { fontSize: scaledFontSize * 0.8 }, bookmarkedAyahs.has(ayah.id) && styles.bookmarkedVerseNumber]}>
+                                              {` \uFD3F${ayah.verse_number}\uFD3E`}
+                                          </Text>
+                                          {' '}
+                                      </Text>
+                                  ))}
+                              </Text>
+                          </React.Fragment>
+                      );
+                  })}
+              </View>
+            )}
+
+            <View style={styles.pageFooter}>
+                <View style={styles.footerDecoration} />
+                <Text style={styles.pageFooterText}>{currentPage}</Text>
+                <View style={styles.footerDecoration} />
+            </View>
+        </ScrollView>
+      </View>
 
       {testModeState?.isActive && (
         <View style={styles.testModePanel}>
@@ -561,11 +624,11 @@ const QuranPageViewerScreen: React.FC = () => {
             </Text>
             <View style={styles.testModeButtonsContainer}>
                 <TouchableOpacity onPress={handleToggleRevealTest} style={styles.testModeButton}>
-                    {testModeState.revealed ? <EyeOffIcon color={Colors.white} size={20}/> : <EyeIcon color={Colors.white} size={20} />}
+                    {testModeState.revealed ? <EyeOffIcon color={Colors.white} size={RFValue(20)}/> : <EyeIcon color={Colors.white} size={RFValue(20)} />}
                     <Text style={styles.testModeButtonText}>{testModeState.revealed ? 'إخفاء الكل' : 'إظهار الكل'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleEndMemorizationTest} style={styles.testModeButton}>
-                    <StopCircleIcon color={Colors.white} size={20}/>
+                    <StopCircleIcon color={Colors.white} size={RFValue(20)}/>
                     <Text style={styles.testModeButtonText}>إنهاء الاختبار</Text>
                 </TouchableOpacity>
             </View>
@@ -581,7 +644,7 @@ const QuranPageViewerScreen: React.FC = () => {
                 </TouchableOpacity>
             </View>
             <TouchableOpacity onPress={handleStopSurah} style={styles.playbackStopButton}>
-                <StopCircleIcon color={Colors.white} size={24} />
+                <StopCircleIcon color={Colors.white} size={RFValue(24)} />
                 <Text style={styles.playbackStopButtonText}>إيقاف</Text>
             </TouchableOpacity>
         </View>
@@ -590,12 +653,12 @@ const QuranPageViewerScreen: React.FC = () => {
 
       <View style={styles.navigationFooter}>
         <TouchableOpacity onPress={handlePrevPage} disabled={currentPage <= 1 } style={[styles.navButton, (currentPage <= 1 ) && styles.navButtonDisabled]}>
-          <ChevronUpIcon color={Colors.secondary} size={28} /> 
+          <ChevronUpIcon color={Colors.secondary} size={RFValue(28)} /> 
           <Text style={styles.navButtonText}>السابقة</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleNextPage} disabled={currentPage >= TOTAL_QURAN_PAGES} style={[styles.navButton, (currentPage >= TOTAL_QURAN_PAGES) && styles.navButtonDisabled, { justifyContent: 'flex-end' }]}>
           <Text style={styles.navButtonText}>التالية</Text>
-          <ChevronDownIcon color={Colors.secondary} size={28} /> 
+          <ChevronDownIcon color={Colors.secondary} size={RFValue(28)} /> 
         </TouchableOpacity>
       </View>
 
@@ -627,51 +690,65 @@ const QuranPageViewerScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  screenContainer: { flex: 1, backgroundColor: Colors.background, fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif'), },
-  centeredMessage: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, },
-  centeredMessageText: { fontSize: 18, color: Colors.accent, textAlign: 'center', },
-  errorText: { color: Colors.error, fontSize: 16, textAlign: 'center', marginBottom: 10, },
-  retryButton: { backgroundColor: Colors.primary, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6, },
-  retryButtonText: { color: Colors.white, fontSize: 15, },
-  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 16, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.secondary, },
-  pageHeaderText: { fontSize: 16, color: Colors.primary, fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'), },
-  scrollViewContent: { paddingVertical: 10, paddingHorizontal: 8, }, 
-  bismillahPageStart: { color: Colors.text, textAlign: 'center', marginBottom: 12, fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'), },
-  bismillahInText: { color: Colors.text, textAlign: 'center', width: '100%', marginBottom: 8, marginTop: 8, fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'), },
-  mushafTextContainer: { 
-    flexDirection: 'row-reverse', 
-    flexWrap: 'wrap', 
-    justifyContent: 'flex-start', 
-    writingDirection: 'rtl', 
-    alignItems: 'flex-start', 
-    borderWidth: 1, 
-    borderColor: Colors.divider, 
-    borderRadius: 8, 
-    padding: 8, 
-    backgroundColor: Colors.white, 
+  screenContainer: { flex: 1, backgroundColor: '#FDF8E8' },
+  centeredMessage: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: RFValue(20), },
+  centeredMessageText: { fontSize: RFValue(18), color: Colors.accent, textAlign: 'center', },
+  errorText: { color: Colors.error, fontSize: RFValue(16), textAlign: 'center', marginBottom: RFValue(10), },
+  retryButton: { backgroundColor: Colors.primary, paddingVertical: RFValue(8), paddingHorizontal: RFValue(16), borderRadius: RFValue(6), },
+  retryButtonText: { color: Colors.white, fontSize: RFValue(15), },
+  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: RFValue(8), paddingHorizontal: RFValue(16), backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.divider, },
+  pageHeaderText: { fontSize: RFValue(16), color: Colors.primary, fontFamily: 'Amiri-Regular' },
+  scrollViewContent: { paddingBottom: RFValue(10), paddingHorizontal: RFValue(10), }, 
+  mushafPageContent: {
+    padding: RFValue(12),
+    backgroundColor: '#FDF8E8',
+    minHeight: '80%', // Ensure it takes up significant space
   },
-  mushafAyahText: { 
-    color: Colors.text, 
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'), 
-    textAlign: 'right', 
-    paddingHorizontal: 1, 
-    marginVertical: 0, 
+  ayahTextFlow: {
+    writingDirection: 'rtl',
+    fontFamily: 'UthmanTNB',
+    textAlign: 'right',
+    color: Colors.text,
   },
-  highlightedAyah: { backgroundColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.25)`, borderRadius: 5, },
-  testAyahHighlight: { backgroundColor: `rgba(${parseInt(Colors.accent.slice(1,3),16)}, ${parseInt(Colors.accent.slice(3,5),16)}, ${parseInt(Colors.accent.slice(5,7),16)}, 0.2)`, },
-  hiddenWordPlaceholder: { color: Colors.accent, opacity: 0.8, },
-  mushafVerseNumber: { color: Colors.secondary, fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-bold'), },
-  bookmarkedVerseNumber: { color: Colors.accent, fontWeight: 'bold', },
-  navigationFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, backgroundColor: Colors.primary, borderTopWidth: 1, borderTopColor: Colors.secondary, },
-  navButton: { flexDirection: 'row', alignItems: 'center', padding: 8, flex: 1, },
+  hiddenWord: {
+    color: Colors.grayMedium,
+    letterSpacing: 2,
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'dotted',
+  },
+  bismillahContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: RFValue(15),
+    marginBottom: RFValue(10),
+  },
+  bismillahText: {
+    fontFamily: 'UthmanTNB',
+    color: Colors.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  highlightedAyah: { backgroundColor: `rgba(196, 160, 82, 0.25)`, borderRadius: RFValue(5), },
+  mushafVerseNumber: { color: Colors.secondary, fontFamily: 'UthmanTNB' },
+  bookmarkedVerseNumber: {
+    color: Colors.white,
+    backgroundColor: Colors.accent,
+    borderRadius: RFValue(5),
+    paddingHorizontal: RFValue(4),
+    paddingVertical: RFValue(1),
+    overflow: 'hidden', // for iOS to respect borderRadius on Text
+    fontWeight: 'bold',
+  },
+  navigationFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: RFValue(10), paddingHorizontal: RFValue(16), backgroundColor: Colors.primary, borderTopWidth: 1, borderTopColor: Colors.secondary, },
+  navButton: { flexDirection: 'row', alignItems: 'center', padding: RFValue(8), flex: 1, },
   navButtonDisabled: { opacity: 0.5, },
-  navButtonText: { color: Colors.secondary, fontSize: 16, fontWeight: '600', marginHorizontal: 5, fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'), },
+  navButtonText: { color: Colors.secondary, fontSize: RFValue(16), fontWeight: '600', marginHorizontal: RFValue(5), fontFamily: 'Amiri-Regular' },
   surahPlaybackFooter: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: RFValue(12),
+    paddingHorizontal: RFValue(16),
     backgroundColor: Colors.primaryLight,
     borderTopWidth: 1,
     borderTopColor: Colors.secondary,
@@ -679,54 +756,87 @@ const styles = StyleSheet.create({
   playbackInfoContainer: {
     flex: 1,
     alignItems: 'flex-end',
-    marginRight: 10,
+    marginRight: RFValue(10),
   },
   playbackSurahName: {
       color: Colors.white,
-      fontSize: 15,
+      fontSize: RFValue(15),
       fontWeight: 'bold',
       fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   reciterTouchable: {
-    marginTop: 4,
+    marginTop: RFValue(4),
   },
   playbackReciterName: {
     color: Colors.secondaryLight,
-    fontSize: 13,
+    fontSize: RFValue(13),
     textDecorationLine: 'underline',
   },
   playbackStopButton: {
       flexDirection: 'row-reverse',
       alignItems: 'center',
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 20,
+      paddingVertical: RFValue(6),
+      paddingHorizontal: RFValue(12),
+      borderRadius: RFValue(20),
       backgroundColor: Colors.error,
   },
   playbackStopButtonText: {
       color: Colors.white,
-      fontSize: 14,
+      fontSize: RFValue(14),
       fontWeight: '600',
-      marginRight: 6,
+      marginRight: RFValue(6),
   },
-  testModePanel: { backgroundColor: Colors.accent, paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: Colors.secondaryLight, },
-  testModePanelText: { color: Colors.white, fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', flexShrink: 1, marginRight: 10, },
+  testModePanel: { backgroundColor: Colors.accent, paddingVertical: RFValue(8), paddingHorizontal: RFValue(16), flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: Colors.secondaryLight, },
+  testModePanelText: { color: Colors.white, fontSize: RFValue(13), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', flexShrink: 1, marginRight: RFValue(10), },
   testModeButtonsContainer: { flexDirection: 'row-reverse', },
-  testModeButton: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 5, backgroundColor: Colors.primaryLight, marginLeft: 8, },
-  testModeButtonText: { color: Colors.white, fontSize: 13, fontWeight: '500', marginLeft: 5, },
-  inlineSurahHeaderContainer: {
-    width: '100%', 
-    alignItems: 'center', 
-    marginVertical: 10, 
-    paddingVertical: 8,
-    backgroundColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.1)`,
-    borderRadius: 6,
+  testModeButton: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: RFValue(6), paddingHorizontal: RFValue(10), borderRadius: RFValue(5), backgroundColor: Colors.primaryLight, marginLeft: RFValue(8), },
+  testModeButtonText: { color: Colors.white, fontSize: RFValue(13), fontWeight: '500', marginLeft: RFValue(5), },
+  surahHeaderOuterContainer: {
+    width: '100%',
+    padding: RFValue(5),
+    marginVertical: RFValue(15),
   },
-  inlineSurahNameText: {
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-bold'),
+  surahHeaderInnerContainer: {
+    width: '100%',
+    backgroundColor: `rgba(196, 160, 82, 0.1)`, // secondary with opacity
+    borderWidth: 2,
+    borderColor: Colors.secondary,
+    borderRadius: RFValue(10),
+    paddingVertical: RFValue(12),
+    paddingHorizontal: RFValue(15),
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  surahHeaderNameText: {
+    fontFamily: 'UthmanTNB',
     color: Colors.primary,
     fontWeight: 'bold',
-    textAlign: 'center',
+  },
+  surahHeaderInfoText: {
+    fontFamily: 'Amiri-Regular',
+    color: Colors.accent,
+    fontSize: RFValue(14),
+  },
+  pageFooter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: RFValue(15),
+    flexDirection: 'row',
+  },
+  pageFooterText: {
+    color: Colors.primary,
+    fontSize: RFValue(16),
+    fontFamily: 'Amiri-Bold',
+    marginHorizontal: RFValue(10),
+  },
+  footerDecoration: {
+    width: RFValue(20),
+    height: RFValue(20),
+    borderWidth: 2,
+    borderColor: Colors.secondary,
+    borderRadius: RFValue(10),
+    transform: [{ rotate: '45deg' }],
   },
 });
 

@@ -1,4 +1,3 @@
-
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid, AVPlaybackStatusError, AVPlaybackStatus } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -73,11 +72,11 @@ export const FEATURED_RECITERS: Reciter[] = [
     fileSuffix: ".mp3",
   },
   {
-    id: "ahmed_ibn_ali_al_ajamy_128kbps_ketaballah.net",
+    id: "Ajamy_128kbps",
     name: "Ahmed Ibn Ali Al-Ajamy",
     nameAr: "أحمد بن علي العجمي",
     rewaya: { ar: "حفص عن عاصم", en: "Hafs an Asim" },
-    serverUrl: "https://everyayah.com/data/ahmed_ibn_ali_al_ajamy_128kbps_ketaballah.net",
+    serverUrl: "https://everyayah.com/data/Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net",
     fileSuffix: ".mp3",
   },
   {
@@ -113,19 +112,27 @@ export const FEATURED_RECITERS: Reciter[] = [
     fileSuffix: ".mp3",
   },
   {
-    id: "Mohammad_Ayyub_128kbps",
-    name: "Muhammad Ayyub",
-    nameAr: "محمد أيوب",
+    id: "Maher_AlMuaiqly_64kbps",
+    name: "Maher Al Muaiqly",
+    nameAr: "ماهر المعيقلي",
     rewaya: { ar: "حفص عن عاصم", en: "Hafs an Asim" },
-    serverUrl: "https://everyayah.com/data/Mohammad_Ayyub_128kbps",
+    serverUrl: "https://everyayah.com/data/Maher_AlMuaiqly_64kbps",
     fileSuffix: ".mp3",
   },
   {
-    id: "Fares_Abbad_64kbps",
-    name: "Fares Abbad",
-    nameAr: "فارس عباد",
+    id: "Yasser_Ad-Dussary_128kbps",
+    name: "Yasser Ad-Dussary",
+    nameAr: "ياسر الدوسري",
     rewaya: { ar: "حفص عن عاصم", en: "Hafs an Asim" },
-    serverUrl: "https://everyayah.com/data/Fares_Abbad_64kbps",
+    serverUrl: "https://everyayah.com/data/Yasser_Ad-Dussary_128kbps",
+    fileSuffix: ".mp3",
+  },
+  {
+    id: "Yassin_al_Jazaery_64kbps_Warsh",
+    name: "Yassin al-Jaza'iri (Warsh)",
+    nameAr: "ياسين الجزائري (ورش عن نافع)",
+    rewaya: { ar: "ورش عن نافع", en: "Warsh an Nafi'" },
+    serverUrl: "https://everyayah.com/data/warsh/warsh_yassin_al_jazaery_64kbps/",
     fileSuffix: ".mp3",
   }
 ];

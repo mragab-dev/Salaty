@@ -1,5 +1,5 @@
 {
-  "name": "صلاتي - Salaty",
+  "name": "Copy of صلاتي - Salaty",
   "description": "A comprehensive Islamic companion app for React Native, providing Quran, Adhkar, prayer times, Qibla direction, and smart reminders to enrich your daily worship. Designed with a beautiful Islamic aesthetic.",
   "permissions": [
     {
@@ -19,6 +19,8 @@
     "Chatbot (Rork Toolkit API, Hugging Face API)",
     "react-native-responsive-fontsize"
   ],
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "prompt": ""
 }

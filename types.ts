@@ -5,6 +5,7 @@ export interface Prayer {
   time: string;
   arabicName: string;
   date?: string; // Optional: To store the formatted date string with prayer times
+  dateObject?: Date; // To store the actual Date object for scheduling
 }
 
 export interface PrayerTimes {
@@ -150,6 +151,7 @@ export interface PrayerNotificationSettings {
   asr: boolean;
   maghrib: boolean;
   isha: boolean;
+  sunrise: boolean;
 }
 
 export interface NotificationSettings {
@@ -160,7 +162,35 @@ export interface NotificationSettings {
   preNotificationOffset: number; // Reminder offset in minutes
 }
 
-// Chatbot Message Type
+// --- Chatbot Types ---
+export interface EmotionalResponse {
+  keywords: string[];
+  // Fields for standard emotional/question responses
+  ayah?: string; 
+  ayahRef?: string;
+  tafsir?: string; // For simple explanation of the Ayah
+  dhikr?: string;
+  dhikrCategory?: string;
+  message?: string | string[];
+  storyTitle?: string;
+  storySummary?: string;
+  storyLesson?: string;
+  primaryContext?: string;
+  navigationHint?: {
+    label: string;
+    target: string;
+    params?: any; 
+  };
+
+  // Fields specific to Surah Info
+  isSurahInfo?: boolean;
+  surahId?: number;
+  surahNameArabic?: string;
+  surahNameEnglish?: string;
+  revelationType?: string;
+  totalVerses?: number;
+  themes?: string[];
+}
 export interface ChatMessage {
   id: string;
   text: string;
@@ -172,6 +202,11 @@ export interface ChatMessage {
   dhikrCategoryName?: string;
   timestamp: number; // For session management and follow-up
   emotionalContext?: string; // To store the detected emotion (e.g., "حزن", "قلق")
+  navigationHint?: {
+    label: string;
+    target: string;
+    params?: any; 
+  };
 }
 
 // --- Adhkar Reminder Types ---

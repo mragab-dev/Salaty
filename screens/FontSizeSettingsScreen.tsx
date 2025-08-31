@@ -9,7 +9,11 @@ import { ASYNC_STORAGE_FONT_SIZE_KEY } from '../constants';
 // Placeholder for a Slider component if you add one later, e.g., from '@react-native-community/slider'
 // For now, using +/- buttons
 
-type FontSizeSettingsScreenRouteProp = RouteProp<import('../App').QuranStackParamList, 'FontSizeSettings'>;
+// Local type definition to resolve type errors for this deprecated screen.
+type LocalQuranStackParamList = {
+    FontSizeSettings: { currentScale: number };
+};
+type FontSizeSettingsScreenRouteProp = RouteProp<LocalQuranStackParamList, 'FontSizeSettings'>;
 
 const FONT_STEP = 0.1;
 const MIN_SCALE = 0.7;
@@ -19,7 +23,8 @@ const FontSizeSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<FontSizeSettingsScreenRouteProp>();
   
-  const { currentScale: initialScale } = route.params;
+  // Safely access params to prevent runtime errors and fix type issues.
+  const initialScale = route.params?.currentScale ?? 1.0;
   const [currentScale, setCurrentScale] = useState(initialScale);
 
   useEffect(() => {
@@ -133,7 +138,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.divider,
   },
   previewText: {
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'),
+    fontFamily: 'AmiriQuran-Regular',
     color: Colors.arabicText,
     textAlign: 'center',
   },

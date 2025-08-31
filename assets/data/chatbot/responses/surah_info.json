@@ -1,0 +1,77 @@
+{
+    "suggestedPrompts": [],
+    "emotionalTriggers": [
+        {
+            "keywords": ["سورة الفاتحة", "الفاتحة"],
+            "isSurahInfo": true,
+            "surahId": 1,
+            "surahNameArabic": "الفاتحة",
+            "surahNameEnglish": "Al-Fatiha",
+            "revelationType": "Meccan",
+            "totalVerses": 7,
+            "themes": ["إثبات وحدانية الله", "أساسيات العقيدة الإسلامية", "الدعاء بالهداية للصراط المستقيم"],
+            "ayah": "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+            "ayahRef": "الفاتحة:6"
+        },
+        {
+            "keywords": ["سورة البقرة", "البقرة"],
+            "isSurahInfo": true,
+            "surahId": 2,
+            "surahNameArabic": "البقرة",
+            "surahNameEnglish": "Al-Baqara",
+            "revelationType": "Medinan",
+            "totalVerses": 286,
+            "themes": ["أحكام وتشريعات", "قصص بني إسرائيل", "آية الكرسي", "فضل أواخر السورة"],
+            "ayah": "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ",
+            "ayahRef": "البقرة:255"
+        },
+        {
+            "keywords": ["سورة الكهف", "الكهف"],
+            "isSurahInfo": true,
+            "surahId": 18,
+            "surahNameArabic": "الكهف",
+            "surahNameEnglish": "Al-Kahf",
+            "revelationType": "Meccan",
+            "totalVerses": 110,
+            "themes": ["قصة أصحاب الكهف", "قصة موسى والخضر", "قصة ذي القرنين", "فتنة المسيح الدجال"],
+            "ayah": "الْحَمْدُ لِلَّهِ الَّذِي أَنزَلَ عَلَىٰ عَبْدِهِ الْكِتَابَ وَلَمْ يَجْعَل لَّهُ عِوَجًا",
+            "ayahRef": "الكهف:1"
+        },
+        {
+            "keywords": ["سورة يس", "يس"],
+            "isSurahInfo": true,
+            "surahId": 36,
+            "surahNameArabic": "يس",
+            "surahNameEnglish": "Ya-Sin",
+            "revelationType": "Meccan",
+            "totalVerses": 83,
+            "themes": ["إثبات الرسالة والبعث", "قصة أصحاب القرية", "عظمة خلق الله"],
+            "ayah": "إِنَّمَا أَمْرُهُ إِذَا أَرَادَ شَيْئًا أَن يَقُولَ لَهُ كُن فَيَكُونُ",
+            "ayahRef": "يس:82"
+        },
+        {
+            "keywords": ["سورة الملك", "الملك"],
+            "isSurahInfo": true,
+            "surahId": 67,
+            "surahNameArabic": "الملك",
+            "surahNameEnglish": "Al-Mulk",
+            "revelationType": "Meccan",
+            "totalVerses": 30,
+            "themes": ["عظمة ملك الله وقدرته", "إتقان الخلق", "النجاة من عذاب القبر"],
+            "ayah": "تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ",
+            "ayahRef": "الملك:1"
+        },
+        {
+            "keywords": ["سورة الرحمن", "الرحمن"],
+            "isSurahInfo": true,
+            "surahId": 55,
+            "surahNameArabic": "الرحمن",
+            "surahNameEnglish": "Ar-Rahman",
+            "revelationType": "Medinan",
+            "totalVerses": 78,
+            "themes": ["تعداد نعم الله على الخلق", "وصف الجنة والنار", "تحدي الإنس والجن"],
+            "ayah": "فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ",
+            "ayahRef": "الرحمن:13"
+        }
+    ]
+}

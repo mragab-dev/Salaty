@@ -1,7 +1,8 @@
 import Colors from '../constants/colors';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Send, BookOpen, Sparkles as SparklesLucide } from 'lucide-react-native'; 
+import { SendIcon, BookOpenIcon, SparklesIcon, SalatyLogoIcon, UserIcon, TrashIcon } from '../components/Icons';
+import { Share2, Star, Navigation } from 'lucide-react-native';
+import TypingIndicator from '../components/TypingIndicator';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -22,11 +23,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { QuranStackParamList, AdhkarStackParamList } from '../App'; 
+import { AppStackParamList } from '../App'; 
 import { getChatbotResponse, ApiContent } from '../services/chatbotService'; 
 import { fetchAllAyahs, fetchSurahList } from '../services/quranService';
 import { Ayah, Surah, ChatMessage } from '../types'; 
-import emotionalResponsesData from '../assets/data/chatbot/emotional_responses.json'; 
+import { suggestedPrompts } from '../assets/data/chatbot/responses';
 import { 
   ASYNC_STORAGE_CHAT_HISTORY_KEY, 
   ASYNC_STORAGE_LAST_EMOTIONAL_CONTEXT,
@@ -34,10 +35,13 @@ import {
   SESSION_TIMEOUT_HOURS 
 } from '../constants';
 import { RFValue } from 'react-native-responsive-fontsize';
+import islamicPatternImg from '../assets/images/islamic_pattern.png';
+import mosqueSilhouetteImg from '../assets/images/mosque_silhouette.png';
+import AppHeader from '../components/AppHeader';
 
 const AnyFlatList = FlatList as any;
 
-type ChatbotNavigationProp = NavigationProp<QuranStackParamList & AdhkarStackParamList>;
+type ChatbotNavigationProp = NavigationProp<AppStackParamList>;
 
 export default function ChatbotScreen() {
   const insets = useSafeAreaInsets();
@@ -61,6 +65,36 @@ export default function ChatbotScreen() {
     isUser: false,
     type: 'text',
     timestamp: Date.now(),
+  };
+
+  const handleClearChat = () => {
+    Alert.alert(
+      "مسح المحادثة",
+      "هل أنت متأكد أنك تريد مسح جميع الرسائل؟ لا يمكن التراجع عن هذا الإجراء.",
+      [
+        {
+          text: "إلغاء",
+          style: "cancel",
+        },
+        {
+          text: "مسح",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setMessages([initialGreetingMessage]);
+              await AsyncStorage.removeItem(ASYNC_STORAGE_CHAT_HISTORY_KEY);
+              await AsyncStorage.removeItem(ASYNC_STORAGE_LAST_EMOTIONAL_CONTEXT);
+              await AsyncStorage.removeItem(ASYNC_STORAGE_LAST_EMOTIONAL_TIMESTAMP);
+              console.log("Chat history and context cleared.");
+            } catch (e) {
+              console.error("Failed to clear chat history:", e);
+              Alert.alert("خطأ", "لم نتمكن من مسح المحادثة.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
   
   const generateFollowUpMessage = useCallback((history: ChatMessage[]): ChatMessage | null => {
@@ -97,8 +131,8 @@ export default function ChatbotScreen() {
 
   useEffect(() => {
     const loadChatData = async () => {
-      if (emotionalResponsesData && Array.isArray(emotionalResponsesData.suggestedPrompts)) {
-        setQuickReplies(emotionalResponsesData.suggestedPrompts);
+      if (suggestedPrompts && Array.isArray(suggestedPrompts)) {
+        setQuickReplies(suggestedPrompts);
       } else {
         setQuickReplies([]);
       }
@@ -243,6 +277,7 @@ export default function ChatbotScreen() {
         dhikrCategoryName: dhikrCategoryMatch ? dhikrCategoryMatch[1] : undefined, 
         timestamp: botMessageTimestamp,
         emotionalContext: botResponse.emotionalContext, 
+        navigationHint: botResponse.navigationHint,
       };
       
       setMessages(prev => [...prev, botMessage]);
@@ -275,109 +310,159 @@ export default function ChatbotScreen() {
       return;
     }
     const parts = ayahRef.split(':');
-    if (parts.length !== 2) {
+    if (parts.length < 2) {
       Alert.alert("خطأ", "مرجع الآية غير صحيح.");
       return;
     }
-    const surahIdentifier = parts[0].trim();
-    const verseNumber = parseInt(parts[1].trim(), 10);
+
+    const surahIdentifier = parts.slice(0, -1).join(':').trim();
+    const verseNumber = parseInt(parts[parts.length - 1].trim(), 10);
 
     if (isNaN(verseNumber)) {
-      Alert.alert("خطأ", "رقم الآية غير صحيح.");
-      return;
+        Alert.alert("خطأ", "رقم الآية غير صحيح.");
+        return;
     }
     
-    navigation.navigate('QuranPageViewer', { 
-        targetSurahIdentifier: surahIdentifier, 
-        targetVerseNumber: verseNumber 
+    navigation.navigate('Main', {
+        screen: 'QuranStack',
+        params: {
+            screen: 'QuranPageViewer',
+            params: {
+                targetSurahIdentifier: surahIdentifier,
+                targetVerseNumber: verseNumber
+            }
+        }
     });
-  };
+};
 
   const handleNavigateToDhikr = (categoryId: string, categoryName?: string) => {
-    navigation.navigate('AdhkarList', { 
-        categoryId: categoryId, 
-        categoryName: categoryName || categoryId 
+    navigation.navigate('Main', {
+      screen: 'AdhkarTab',
+      params: {
+        screen: 'AdhkarList',
+        params: {
+          categoryId: categoryId,
+          categoryName: categoryName || categoryId,
+        },
+      },
     });
   };
 
+  const handleNavigation = (hint: { target: string; params?: any }) => {
+    const { target, params } = hint;
+    const tabScreens = ['PrayerTimesTab', 'QuranStack', 'AdhkarTab', 'ReportsTab'];
+
+    if (tabScreens.includes(target)) {
+        navigation.navigate('Main', {
+            screen: target as any,
+            ...(params && { params: params as any })
+        });
+    } else {
+        navigation.navigate(target as any, params as any);
+    }
+  };
+
+
+const renderMessageItem = ({ item }: { item: ChatMessage }) => {
+    const isUser = item.isUser;
+    return (
+        <View style={[styles.messageRow, isUser ? styles.userRow : styles.botRow]}>
+            <View style={[styles.avatarContainer, isUser ? styles.userAvatar : styles.botAvatar]}>
+                {isUser ? (
+                    <UserIcon size={RFValue(24)} color={Colors.primaryDark} />
+                ) : (
+                    <SalatyLogoIcon size={RFValue(28)} color={Colors.white} />
+                )}
+            </View>
+            <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.botBubble]}>
+                <View style={styles.messageHeader}>
+                    <Text style={[styles.messageText, isUser ? styles.userText : styles.botText]}>{item.text}</Text>
+                    {!isUser && (
+                        <View style={styles.messageActions}>
+                             <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(item.text)}>
+                                <Share2 size={RFValue(18)} color={Colors.textLight} />
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.actionButton} onPress={() => toggleFavorite(item.id)}>
+                                <Star size={RFValue(18)} color={item.isFavorite ? Colors.secondary : Colors.textLight} fill={item.isFavorite ? Colors.secondary : 'transparent'} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+                 {!item.isUser && (item.ayahRef || item.dhikrCategory || item.navigationHint) && (
+                    <View style={styles.interactiveButtonsContainer}>
+                        {item.ayahRef && (
+                            <TouchableOpacity style={styles.interactiveButton} onPress={() => handleNavigateToAyah(item.ayahRef!)}>
+                                <BookOpenIcon size={RFValue(16)} color={Colors.primary} />
+                                <Text style={styles.interactiveButtonText}>عرض الآية في المصحف</Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.dhikrCategory && (
+                            <TouchableOpacity style={styles.interactiveButton} onPress={() => handleNavigateToDhikr(item.dhikrCategory!, item.dhikrCategoryName)}>
+                                <SparklesIcon size={RFValue(16)} color={Colors.primary} />
+                                <Text style={styles.interactiveButtonText}>الذهاب إلى هذا الذكر</Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.navigationHint && (
+                            <TouchableOpacity
+                                style={styles.interactiveButton}
+                                onPress={() => handleNavigation(item.navigationHint!)}>
+                                <Navigation size={RFValue(16)} color={Colors.primary} />
+                                <Text style={styles.interactiveButtonText}>{item.navigationHint.label}</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+                {!item.isUser && item.id === initialGreetingMessage.id && messages.length <= (messages.find(m => m.id.startsWith("followup-")) ? 2 : 1) && quickReplies.length > 0 && (
+                    <View style={styles.quickRepliesContainer}>
+                        {quickReplies.map((reply, index) => (
+                            <TouchableOpacity key={index} style={styles.quickReplyButton} onPress={() => handleQuickReply(reply)}>
+                                <Text style={styles.quickReplyText}>{reply}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+            </View>
+        </View>
+    );
+};
 
   return (
     <View style={styles.container}>
-      <View style={styles.topSection}><Image source={require('../assets/images/islamic_pattern.png')} style={styles.patternImage} resizeMode="repeat"/></View>
-      <View style={styles.bottomSection}><Image source={require('../assets/images/islamic_pattern.png')} style={styles.mosqueImage} resizeMode="cover"/></View>
-
+      <AppHeader 
+        title="اسأل صلاتي" 
+        headerRight={
+            <TouchableOpacity onPress={handleClearChat} style={{ padding: RFValue(5) }}>
+                <TrashIcon color={Colors.secondary} size={RFValue(24)} />
+            </TouchableOpacity>
+        }
+      />
       <KeyboardAvoidingView
-        style={[styles.keyboardContainer, { paddingTop: insets.top }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top > 20 ? 60 : 90) : 0}
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + RFValue(50) : 0} 
       >
-        <Animated.View style={[styles.headerContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-          <View style={styles.header}>
-            <Text style={styles.title}>اسأل صلاتى</Text>
-            <Text style={styles.titleEnglish}>Ask Salaty</Text>
-            <Text style={styles.subtitle}>الإرشاد الإسلامي والراحة</Text>
-            <View style={styles.headerDecoration}><Svg width={RFValue(120)} height={RFValue(20)}><Path d="M10,10 L50,10 M70,10 L110,10" stroke={Colors.secondary} strokeWidth="1" strokeLinecap="round"/><Circle cx={60} cy={10} r="4" fill={Colors.secondary} fillOpacity="0.8"/></Svg></View>
-          </View>
-        </Animated.View>
-        
         <Animated.View style={[styles.chatContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-          <LinearGradient colors={['rgba(26, 47, 69, 0.95)', 'rgba(26, 47, 69, 0.98)']} style={styles.chatBackground}>
             <AnyFlatList
               ref={flatListRef}
               data={messages}
               keyExtractor={(item: ChatMessage) => item.id}
-              renderItem={({ item }: { item: ChatMessage }) => (
-                <View style={[styles.messageBubble, item.isUser ? styles.userBubble : styles.botBubble]}>
-                    <View style={styles.messageHeader}>
-                        <Text style={[styles.messageText, item.isUser ? styles.userText : styles.botText]}>{item.text}</Text>
-                        {!item.isUser && (
-                        <View style={styles.messageActions}>
-                            <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(item.text)}><Ionicons name="share-outline" size={RFValue(20)} color={Colors.white}/></TouchableOpacity>
-                            <TouchableOpacity style={styles.actionButton} onPress={() => toggleFavorite(item.id)}><Ionicons name={item.isFavorite ? "star" : "star-outline"} size={RFValue(20)} color={item.isFavorite ? Colors.secondary : Colors.white}/></TouchableOpacity>
-                        </View>
-                        )}
-                    </View>
-                    {!item.isUser && (item.ayahRef || item.dhikrCategory) && (
-                        <View style={styles.interactiveButtonsContainer}>
-                            {item.ayahRef && (
-                                <TouchableOpacity style={styles.interactiveButton} onPress={() => handleNavigateToAyah(item.ayahRef!)}>
-                                    <BookOpen size={RFValue(16)} color={Colors.white} />
-                                    <Text style={styles.interactiveButtonText}>عرض الآية في المصحف</Text>
-                                </TouchableOpacity>
-                            )}
-                            {item.dhikrCategory && (
-                                <TouchableOpacity style={styles.interactiveButton} onPress={() => handleNavigateToDhikr(item.dhikrCategory!, item.dhikrCategoryName)}>
-                                     <SparklesLucide size={RFValue(16)} color={Colors.white} />
-                                    <Text style={styles.interactiveButtonText}>الذهاب إلى هذا الذكر</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    )}
-                    {!item.isUser && item.id === initialGreetingMessage.id && messages.length <= (messages.find(m=>m.id.startsWith("followup-")) ? 2:1) && quickReplies.length > 0 && (
-                    <View style={styles.quickRepliesContainer}>
-                        {quickReplies.map((reply, index) => (
-                        <TouchableOpacity key={index} style={styles.quickReplyButton} onPress={() => handleQuickReply(reply)}><Text style={styles.quickReplyText}>{reply}</Text></TouchableOpacity>
-                        ))}
-                    </View>
-                    )}
-                </View>
-              )}
+              renderItem={renderMessageItem}
               contentContainerStyle={styles.messagesList}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
               onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              ListFooterComponent={isLoading ? <TypingIndicator /> : null}
             />
-          </LinearGradient>
           
-          <LinearGradient colors={['rgba(26, 47, 69, 0.98)', 'rgba(26, 47, 69, 1)']} style={styles.inputContainer}>
+          <View style={styles.inputContainer}>
             <View style={styles.inputRow}>
               <TextInput style={styles.input} value={input} onChangeText={setInput} placeholder="شارك ما تشعر به..." placeholderTextColor={Colors.textLight} multiline maxLength={500}/>
               <TouchableOpacity style={[styles.sendButton, (!input.trim()) && styles.disabledButton]} onPress={() => handleSend()} disabled={(!input.trim()) || isLoading}>
                 <LinearGradient colors={input.trim() ? [Colors.secondary, Colors.secondaryLight] : ['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']} style={styles.sendButtonGradient}>
-                  {isLoading ? <ActivityIndicator size="small" color={Colors.white} /> : <Send size={RFValue(20)} color={Colors.white} />}
+                  {isLoading ? <ActivityIndicator size="small" color={Colors.primary} /> : <SendIcon size={RFValue(20)} color={Colors.primary} />}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </LinearGradient>
+          </View>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
@@ -386,60 +471,37 @@ export default function ChatbotScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary, },
-  topSection: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', zIndex: 0 },
-  patternImage: { width: '100%', height: '100%', opacity: 0.3, },
-  bottomSection: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '50%', zIndex: 0, },
-  mosqueImage: { width: '100%', height: '100%', opacity: 0.4, },
   keyboardContainer: { flex: 1, },
-  headerContainer: { paddingHorizontal: RFValue(20), paddingVertical: RFValue(1), backgroundColor: 'transparent', },
-  header: { alignItems: 'center', },
-  title: { fontSize: RFValue(32), fontWeight: 'bold', color: Colors.white, marginBottom: RFValue(4), textShadowColor: 'rgba(0, 0, 0, 0.3)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2, fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium', },
-  titleEnglish: { fontSize: RFValue(18), color: Colors.secondary, fontWeight: '600', marginBottom: RFValue(8), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', },
-  subtitle: { fontSize: RFValue(16), color: Colors.white, opacity: 0.9, marginBottom: RFValue(10), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', },
-  headerDecoration: { alignItems: 'center', marginBottom: RFValue(10), },
-  chatContainer: { flex: 1, marginHorizontal: RFValue(16), marginBottom: RFValue(16), borderRadius: RFValue(24), overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(212, 175, 55, 0.3)', shadowColor: Colors.secondary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 10, },
-  chatBackground: { flex: 1, },
-  messagesList: { padding: RFValue(16), paddingBottom: RFValue(100), },
-  messageBubble: { maxWidth: '80%', padding: RFValue(16), borderRadius: RFValue(20), marginBottom: RFValue(12), shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, },
-  userBubble: { backgroundColor: Colors.secondary, alignSelf: 'flex-end', borderBottomRightRadius: RFValue(6), borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', },
-  botBubble: { backgroundColor: 'rgba(255, 255, 255, 0.95)', alignSelf: 'flex-start', borderBottomLeftRadius: RFValue(6), borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', },
+  chatContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  messagesList: { padding: RFValue(10), },
+  messageRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: RFValue(12), maxWidth: '85%', },
+  userRow: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
+  botRow: { alignSelf: 'flex-start', },
+  avatarContainer: { width: RFValue(40), height: RFValue(40), borderRadius: RFValue(20), justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2, },
+  userAvatar: { backgroundColor: Colors.secondaryLight, marginRight: RFValue(8) },
+  botAvatar: { backgroundColor: Colors.primaryLight, marginLeft: RFValue(8) },
+  messageBubble: { padding: RFValue(12), borderRadius: RFValue(18), flexShrink: 1, },
+  userBubble: { backgroundColor: Colors.secondary, borderBottomRightRadius: RFValue(6), },
+  botBubble: { backgroundColor: Colors.white, borderBottomLeftRadius: RFValue(6), },
+  messageHeader: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'flex-start', },
   messageText: { fontSize: RFValue(16), lineHeight: RFValue(24), textAlign: 'right', fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', },
-  userText: { color: Colors.primary, fontWeight: '500', },
+  userText: { color: Colors.primaryDark, },
   botText: { color: Colors.text, },
-  inputContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 1.5, borderTopColor: 'rgba(212, 175, 55, 0.3)', },
-  inputRow: { flexDirection: 'row', padding: RFValue(16), alignItems: 'flex-end', },
-  input: { flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: RFValue(24), paddingHorizontal: RFValue(20), paddingVertical: Platform.OS === 'ios' ? RFValue(12) : RFValue(10), maxHeight: RFValue(100), fontSize: RFValue(16), color: Colors.text, textAlign: 'right', borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', },
-  sendButton: { width: RFValue(48), height: RFValue(48), borderRadius: RFValue(24), marginLeft: RFValue(12), overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 5, },
+  inputContainer: { backgroundColor: Colors.background, borderTopWidth: 1, borderTopColor: Colors.moonlight, },
+  inputRow: { flexDirection: 'row-reverse', padding: RFValue(10), alignItems: 'center', },
+  input: { flex: 1, backgroundColor: Colors.white, borderRadius: RFValue(24), paddingHorizontal: RFValue(20), paddingVertical: Platform.OS === 'ios' ? RFValue(12) : RFValue(10), maxHeight: RFValue(100), fontSize: RFValue(16), color: Colors.text, textAlign: 'right', borderWidth: 1, borderColor: Colors.divider, },
+  sendButton: { width: RFValue(48), height: RFValue(48), borderRadius: RFValue(24), marginLeft: RFValue(10), overflow: 'hidden', },
   sendButtonGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', },
   disabledButton: { opacity: 0.6, },
-  quickRepliesContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: RFValue(10), justifyContent: 'flex-start', gap: RFValue(8), },
-  quickReplyButton: { backgroundColor: Colors.moonlight, paddingHorizontal: RFValue(12), paddingVertical: RFValue(6), borderRadius: RFValue(16), borderWidth: 1, borderColor: Colors.divider, },
-  quickReplyText: { color: Colors.primary, fontSize: RFValue(14), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', },
-  messageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: RFValue(8), },
-  messageActions: { flexDirection: Platform.OS === 'web' ? 'row-reverse' : 'row', gap: RFValue(8), 
-    alignSelf: 'flex-start', 
-    paddingTop: RFValue(4),
-  },
+  quickRepliesContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: RFValue(12), justifyContent: 'flex-start', gap: RFValue(8), },
+  quickReplyButton: { backgroundColor: Colors.background, paddingHorizontal: RFValue(14), paddingVertical: RFValue(8), borderRadius: RFValue(16), borderWidth: 1, borderColor: Colors.divider, },
+  quickReplyText: { color: Colors.primary, fontSize: RFValue(14), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium', },
+  messageActions: { flexDirection: 'row', gap: RFValue(8), marginLeft: RFValue(10), paddingTop: RFValue(4) },
   actionButton: { padding: RFValue(4), },
-  interactiveButtonsContainer: {
-    flexDirection: 'column', 
-    marginTop: RFValue(10),
-    alignItems: 'flex-start', 
-  },
-  interactiveButton: {
-    flexDirection: 'row-reverse', 
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    paddingVertical: RFValue(8),
-    paddingHorizontal: RFValue(12),
-    borderRadius: RFValue(18),
-    marginTop: RFValue(8),
-    alignSelf: 'flex-start', 
-  },
-  interactiveButtonText: {
-    color: Colors.white,
-    fontSize: RFValue(14),
-    marginLeft: RFValue(8), 
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
-  },
+  interactiveButtonsContainer: { marginTop: RFValue(12), paddingTop: RFValue(10), borderTopWidth: 1, borderTopColor: Colors.divider, alignItems: 'flex-start', },
+  interactiveButton: { flexDirection: 'row-reverse', alignItems: 'center', backgroundColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.15)`, paddingVertical: RFValue(8), paddingHorizontal: RFValue(12), borderRadius: RFValue(18), marginTop: RFValue(8), },
+  interactiveButtonText: { color: Colors.primary, fontSize: RFValue(14), marginRight: RFValue(8), fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium', },
 });

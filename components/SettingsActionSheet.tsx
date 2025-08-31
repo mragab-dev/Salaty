@@ -3,9 +3,9 @@ import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { RFValue } from 'react-native-responsive-fontsize';
 import Colors from '../constants/colors';
-import { ListBulletIcon, BookmarkOutlineIcon, DownloadIcon, TextStyleIcon, CloseIcon, IconProps, PencilIcon } from './Icons'; // Added PencilIcon
+import { ListBulletIcon, BookmarkOutlineIcon, DownloadIcon, CloseIcon, IconProps, PencilIcon } from './Icons'; // Removed TextStyleIcon
 
-export type QuranSettingsAction = 'Index' | 'Bookmarks' | 'Downloads' | 'FontSize' | 'MemorizationTest'; // Added MemorizationTest
+export type QuranSettingsAction = 'Index' | 'Bookmarks' | 'Downloads' | 'MemorizationTest'; // Removed 'FontSize'
 
 interface ActionItemProps {
   icon: React.ReactElement<IconProps>; 
@@ -50,7 +50,6 @@ const SettingsActionSheet: React.FC<SettingsActionSheetProps> = ({ visible, onCl
           <ActionItem icon={<ListBulletIcon />} text="الفهرس" onPress={() => handleActionPress('Index')} />
           <ActionItem icon={<BookmarkOutlineIcon />} text="العلامات المرجعية" onPress={() => handleActionPress('Bookmarks')} />
           <ActionItem icon={<DownloadIcon />} text="تحميل الصوتيات" onPress={() => handleActionPress('Downloads')} />
-          <ActionItem icon={<TextStyleIcon />} text="تعديل حجم الخط" onPress={() => handleActionPress('FontSize')} />
           <ActionItem icon={<PencilIcon />} text="بدء اختبار حفظ" onPress={() => handleActionPress('MemorizationTest')} />
           
           <TouchableOpacity style={styles.cancelButtonInternal} onPress={onClose}>

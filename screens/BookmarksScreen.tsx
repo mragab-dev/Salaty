@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
-import { useRoute, RouteProp, useNavigation, NavigationProp } from '@react-navigation/native'; // Added useNavigation
+import { useRoute, RouteProp, useNavigation, NavigationProp } from '@react-navigation/native';
 import Colors from '../constants/colors';
-import { Ayah } from '../types';
+import { Ayah, Surah } from '../types';
+import { fetchAllAyahs } from '../services/quranService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { BookOpenIcon } from '../components/Icons';
-import { QuranStackParamList } from '../App'; // Import ParamList for navigation
+import { QuranStackParamList } from '../App';
 import { RFValue } from 'react-native-responsive-fontsize';
 
 const AnyFlatList = FlatList as any;
@@ -14,34 +15,74 @@ type BookmarksScreenRouteProp = RouteProp<QuranStackParamList, 'Bookmarks'>;
 
 const BookmarksScreen: React.FC = () => {
   const route = useRoute<BookmarksScreenRouteProp>();
-  const navigation = useNavigation<NavigationProp<QuranStackParamList>>(); // Typed navigation
-  const { bookmarkedAyahs: bookmarkedAyahIds, allAyahs } = route.params;
+  const navigation = useNavigation<NavigationProp<QuranStackParamList>>();
+  const { bookmarkedAyahs: bookmarkedAyahIds, surahList } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [displayableBookmarks, setDisplayableBookmarks] = useState<Ayah[]>([]);
 
   useEffect(() => {
-    if (allAyahs && allAyahs.length > 0 && bookmarkedAyahIds) {
-      const filtered = allAyahs.filter(ayah => bookmarkedAyahIds.has(ayah.id));
-      // Sort by surah_number then verse_number
-      filtered.sort((a, b) => {
-        if (a.surah_number !== b.surah_number) {
-          return a.surah_number - b.surah_number;
-        }
-        return a.verse_number - b.verse_number;
-      });
-      setDisplayableBookmarks(filtered);
-    } else {
+    const processBookmarks = async () => {
+      // Keep loading spinner on while fetching AND filtering
+      setLoading(true);
+      try {
+        const allAyahs = await fetchAllAyahs();
+        
+        // Defer heavy filtering to next event loop cycle to prevent UI freeze during navigation
+        setTimeout(() => {
+          if (allAyahs && allAyahs.length > 0 && bookmarkedAyahIds) {
+            const bookmarkedIdSet = new Set(bookmarkedAyahIds);
+            const filtered = allAyahs.filter(ayah => bookmarkedIdSet.has(ayah.id));
+            
+            filtered.sort((a, b) => {
+              if (a.surah_number !== b.surah_number) {
+                return a.surah_number - b.surah_number;
+              }
+              return a.verse_number - b.verse_number;
+            });
+            setDisplayableBookmarks(filtered);
+          } else {
+            setDisplayableBookmarks([]);
+          }
+          setLoading(false); // Stop loading only after filtering is done
+        }, 0);
+
+      } catch (error) {
+        console.error("Error loading ayahs for bookmarks:", error);
         setDisplayableBookmarks([]);
-    }
-    setLoading(false);
-  }, [allAyahs, bookmarkedAyahIds]);
+        setLoading(false);
+      }
+    };
+    
+    processBookmarks();
+  }, [bookmarkedAyahIds]);
 
   const handleNavigate = (pageNumber: number) => {
-    // Navigate back to QuranPageViewerScreen and set the initial page
     navigation.navigate('QuranPageViewer', { initialPageNumber: pageNumber });
   };
 
+  const getSurahName = useCallback((surahNumber: number): string => {
+    if (!surahList || surahList.length === 0) {
+      return `سورة ${surahNumber}`;
+    }
+    const surahInfo = surahList.find(s => s.id === surahNumber);
+    return surahInfo ? surahInfo.name_arabic : `سورة ${surahNumber}`;
+  }, [surahList]);
+
+  const renderBookmarkItem = ({ item }: { item: Ayah }) => (
+    <TouchableOpacity style={styles.bookmarkItem} onPress={() => handleNavigate(item.page)}>
+      <Text style={styles.bookmarkAyahText}>{item.text.substring(0, 100)}{item.text.length > 100 ? '...' : ''}</Text>
+      <View style={styles.bookmarkDetails}>
+        <Text style={styles.bookmarkSurahText}>
+          {getSurahName(item.surah_number)} - آية {item.verse_number}
+        </Text>
+        <View style={styles.pageInfo}>
+            <BookOpenIcon color={Colors.accent} size={RFValue(14)} />
+            <Text style={styles.bookmarkPageText}>صفحة {item.page}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 
   if (loading) {
     return <LoadingSpinner text="جاري تحميل العلامات المرجعية..." style={styles.centered} />;
@@ -55,31 +96,6 @@ const BookmarksScreen: React.FC = () => {
       </View>
     );
   }
-
-  const getSurahNameFromAllAyahs = (surahNumber: number) => {
-    // This is inefficient if allAyahs is huge. For a better approach, a surahList would be ideal.
-    // Assuming surah_number maps to a loaded surah in allAyahs, or pass surahList.
-    // For now, we'll find the first Ayah of that surah to get its name (if surah names aren't directly in Ayah objects).
-    // This assumes a surah list is not directly available here, and uses the structure of `allAyahs`.
-    // A better approach would be to also pass the `surahList` from `quranService` to this screen.
-    // As a fallback, use surah number.
-    return `سورة ${surahNumber}`; // Placeholder if surah name isn't easily accessible from ayah object
-  };
-
-  const renderBookmarkItem = ({ item }: { item: Ayah }) => (
-    <TouchableOpacity style={styles.bookmarkItem} onPress={() => handleNavigate(item.page)}>
-      <Text style={styles.bookmarkAyahText}>{item.text.substring(0, 100)}{item.text.length > 100 ? '...' : ''}</Text>
-      <View style={styles.bookmarkDetails}>
-        <Text style={styles.bookmarkSurahText}>
-          {getSurahNameFromAllAyahs(item.surah_number)} - آية {item.verse_number}
-        </Text>
-        <View style={styles.pageInfo}>
-            <BookOpenIcon color={Colors.accent} size={RFValue(14)} />
-            <Text style={styles.bookmarkPageText}>صفحة {item.page}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
     <View style={styles.container}>
@@ -152,7 +168,7 @@ const styles = StyleSheet.create({
   },
   bookmarkAyahText: {
     fontSize: RFValue(16),
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif'),
+    fontFamily: 'AmiriQuran-Regular',
     color: Colors.arabicText,
     textAlign: 'right',
     marginBottom: RFValue(10),
@@ -176,7 +192,7 @@ const styles = StyleSheet.create({
     fontSize: RFValue(13),
     color: Colors.accent,
     marginLeft: RFValue(5),
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    fontFamily: 'Amiri-Regular',
   },
 });
 

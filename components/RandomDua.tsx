@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     color: Colors.white,
     fontWeight: '500',
-    fontFamily: 'Amiri, serif',
+    fontFamily: 'Amiri-Regular',
     marginBottom: RFValue(8),
   },
   expandedContent: {

@@ -128,13 +128,13 @@ const styles = StyleSheet.create({
   reciterNameAr: {
     fontSize: RFValue(18),
     color: Colors.arabicText,
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'),
+    fontFamily: 'Amiri-Regular',
     textAlign: 'right',
   },
   reciterRewaya: {
     fontSize: RFValue(14),
     color: Colors.accent,
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif'),
+    fontFamily: 'Amiri-Regular',
     marginTop: RFValue(3),
     textAlign: 'right',
   },

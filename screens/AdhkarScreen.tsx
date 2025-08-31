@@ -10,11 +10,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RFValue } from 'react-native-responsive-fontsize';
 
 import Colors from '../constants/colors';
-import IslamicPattern from '../components/IslamicPattern';
+import { IslamicPattern } from '../components/IslamicPattern';
 import rawCategoryData from '../assets/data/azkar/category';
-import { AdhkarStackParamList } from '../App';
+import { AdhkarStackParamList, AppStackParamList } from '../App';
 import { SearchIcon } from '../components/Icons'; 
 import { ASYNC_STORAGE_ADHKAR_FAVORITES_KEY } from '../constants';
+import AppHeader from '../components/AppHeader';
 
 const AnyAnimatedScrollView = Animated.ScrollView as any;
 
@@ -329,18 +330,6 @@ export default function AdhkarScreen() {
     navigation.navigate('AdhkarList', { categoryId, categoryName });
   };
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 70], 
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-
-  const headerTranslateY = scrollY.interpolate({
-    inputRange: [0, 70],
-    outputRange: [0, -25], 
-    extrapolate: 'clamp',
-  });
-
   const renderGridItems = (items: AdhkarCategory[], baseIndex: number = 0) => {
     const gridItems = items.map((item, index) => (
       <CategoryCard
@@ -363,126 +352,78 @@ export default function AdhkarScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? insets.top : 0 }]}>
+    <View style={styles.container}>
       <StatusBar style={Platform.OS === 'ios' ? "light" : "dark"} backgroundColor={Colors.primary} />
-      
-      <LinearGradient
-        colors={timeColors.primary}
-        style={styles.backgroundGradient}
+      <AppHeader />
+      <AnyAnimatedScrollView
+        style={{ flex: 1 }}
+        onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true } 
+        )}
+        scrollEventThrottle={16}
+        contentContainerStyle={{paddingBottom: insets.bottom + RFValue(20)}}
       >
-         <IslamicPattern style={styles.pattern} variant="geometric" color="rgba(255,255,255,0.05)" animated />
-      </LinearGradient>
-      
-      <Animated.View 
-        style={[
-          styles.header, {paddingTop: Platform.OS === 'ios' ? insets.top + RFValue(10) : RFValue(20)}, 
-          {
-            opacity: headerOpacity,
-            transform: [{ translateY: headerTranslateY }],
-          },
-        ]}
-      >
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }} >
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>الأذكــــار</Text>
-            <View style={styles.titleDecoration}>
-              <Star size={RFValue(14)} color={Colors.white} opacity={0.9}/>
-              <Text style={styles.subtitle}>حصن المسلم اليومي</Text>
-              <Star size={RFValue(14)} color={Colors.white} opacity={0.9}/>
+        <LinearGradient
+            colors={timeColors.primary}
+            style={styles.backgroundGradient}
+        >
+            <IslamicPattern style={styles.pattern} variant="geometric" color="rgba(255, 255, 255, 0.05)" animated />
+        </LinearGradient>
+
+        <View style={styles.header}>
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }} >
+            <View style={styles.greetingContainer}>
+              <Text style={styles.greeting}>
+                {timeOfDay === 'morning' ? 'أذكار الصباح والمساء ودعوات مباركة' : 
+                 timeOfDay === 'evening' ? 'أذكار المساء وأدعية متنوعة ونافعة' : 'أذكار النوم والرقية الشرعية وسكينة الليل'}
+              </Text>
             </View>
-          </View>
-          <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>
-              {timeOfDay === 'morning' ? 'أذكار الصباح والمساء ودعوات مباركة' : 
-               timeOfDay === 'evening' ? 'أذكار المساء وأدعية متنوعة ونافعة' : 'أذكار النوم والرقية الشرعية وسكينة الليل'}
-            </Text>
-          </View>
-          <View style={styles.headerDecoration}>
-            <Svg width={RFValue(120)} height={RFValue(30)}>
-              <Path d="M10,15 L50,15 M70,15 L110,15" stroke={Colors.white} strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.8"/>
-              <Circle cx={60} cy={15} r="5" fill="none" stroke={Colors.white} strokeWidth="1.8" strokeOpacity="0.6"/>
-              <Circle cx={60} cy={15} r="2.5" fill={Colors.white} fillOpacity="0.8" />
-            </Svg>
-          </View>
-        </Animated.View>
-      </Animated.View>
-      
-      <View style={styles.listContainer}>
-        <View style={styles.searchBarContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="ابحث في فئات الأذكار..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={Colors.textLight}
-            />
-            <View style={styles.searchIconContainer}>
-                <SearchIcon color={Colors.primary} size={RFValue(20)} />
-            </View>
+          </Animated.View>
         </View>
 
-        <AnyAnimatedScrollView
-            onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: true } 
-            )}
-            scrollEventThrottle={16}
-            contentContainerStyle={[styles.listContent, {paddingBottom: insets.bottom + RFValue(20)}]}
-        >
-            {searchQuery.length > 0 ? (
-                <View style={styles.gridContainer}>
-                    {filteredCategories.length > 0 ? (
-                        renderGridItems(filteredCategories)
-                    ) : (
-                        <Text style={styles.noResultsText}>لا توجد نتائج مطابقة لبحثك.</Text>
-                    )}
-                </View>
-            ) : (
-                <>
-                    {favoriteCategories.length > 0 && (
-                        <View>
-                            <Text style={styles.sectionTitle}>المفضلة</Text>
-                            <View style={styles.gridContainer}>
-                                {renderGridItems(favoriteCategories)}
-                            </View>
-                        </View>
-                    )}
-                    <Text style={styles.sectionTitle}>جميع الفئات</Text>
-                    <View style={styles.gridContainer}>
-                        {renderGridItems(regularCategories, favoriteCategories.length)}
-                    </View>
-                </>
-            )}
-        </AnyAnimatedScrollView>
-      </View>
+        <View style={styles.listContainer}>
+          <View style={styles.searchBarContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="ابحث في فئات الأذكار..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor={Colors.textLight}
+              />
+              <View style={styles.searchIconContainer}>
+                  <SearchIcon color={Colors.primary} size={RFValue(20)} />
+              </View>
+          </View>
+          <View style={styles.listContent}>
+              {searchQuery.length > 0 ? (
+                  <View style={styles.gridContainer}>
+                      {filteredCategories.length > 0 ? (
+                          renderGridItems(filteredCategories)
+                      ) : (
+                          <Text style={styles.noResultsText}>لا توجد نتائج مطابقة لبحثك.</Text>
+                      )}
+                  </View>
+              ) : (
+                  <>
+                      {favoriteCategories.length > 0 && (
+                          <View>
+                              <Text style={styles.sectionTitle}>المفضلة</Text>
+                              <View style={styles.gridContainer}>
+                                  {renderGridItems(favoriteCategories)}
+                              </View>
+                          </View>
+                      )}
+                      <Text style={styles.sectionTitle}>جميع الفئات</Text>
+                      <View style={styles.gridContainer}>
+                          {renderGridItems(regularCategories, favoriteCategories.length)}
+                      </View>
+                  </>
+              )}
+          </View>
+        </View>
+      </AnyAnimatedScrollView>
       
-      <Animated.View
-        style={[
-          styles.mosqueSilhouetteContainer,
-          {
-            transform: [
-              {
-                translateY: scrollY.interpolate({
-                  inputRange: [0, 200],
-                  outputRange: [0, 50], 
-                  extrapolate: 'clamp',
-                }),
-              },
-            ],
-            opacity: scrollY.interpolate({ 
-              inputRange: [0, 180],
-              outputRange: [0.4, 0],
-              extrapolate: 'clamp',
-            })
-          },
-        ]}
-      >
-        <ImageBackground
-          source={require('../assets/images/mosque_silhouette.png')}
-          style={styles.mosqueSilhouette}
-          resizeMode="contain"
-        />
-      </Animated.View>
     </View>
   );
 }
@@ -490,24 +431,26 @@ export default function AdhkarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundDark, 
+    backgroundColor: Colors.primary, 
   },
   backgroundGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: height * 0.55,
+    height: height * 0.5,
   },
   pattern: { 
     height: '100%', 
-    opacity: 0.1,  
+    opacity: 0.9,  
   },
   header: {
     paddingHorizontal: RFValue(20),
-    paddingBottom: RFValue(18), 
+    paddingBottom: RFValue(50), 
     backgroundColor: 'transparent', 
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: RFValue(20),
     zIndex: 10, 
   },
   titleContainer: {
@@ -523,7 +466,7 @@ const styles = StyleSheet.create({
     fontSize: RFValue(Platform.OS === 'ios' ? 36 : 32), 
     fontWeight: 'bold',
     color: Colors.white,
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri-Bold' : 'sans-serif-condensed'), 
+    fontFamily: 'Amiri-Bold', 
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 2.5 },
     textShadowRadius: 5,
@@ -533,7 +476,7 @@ const styles = StyleSheet.create({
     color: Colors.moonlight, 
     fontWeight: '500',
     marginHorizontal: RFValue(8),
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif'), 
+    fontFamily: 'Amiri-Regular', 
   },
   greetingContainer: {
     backgroundColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.2)`, 
@@ -545,23 +488,23 @@ const styles = StyleSheet.create({
     borderColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.3)`,
   },
   greeting: {
-    fontSize: RFValue(Platform.OS === 'ios' ? 13.5 : 12.5),
+    fontSize: RFValue(Platform.OS === 'ios' ? 25: 12.5),
     color: Colors.white,
     fontWeight: '600',
     textAlign: 'center',
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'),
+    fontFamily: 'Amiri-Regular',
   },
   headerDecoration: {
     alignItems: 'center',
     marginTop: RFValue(8), 
   },
   listContainer: {
-    flex: 1,
     backgroundColor: Colors.background, 
     borderTopLeftRadius: RFValue(30), 
     borderTopRightRadius: RFValue(30),
     marginTop: RFValue(-35), 
     zIndex: 5, 
+    minHeight: height * 0.7, // Ensure it's high enough to scroll
   },
   searchBarContainer: {
     padding: RFValue(16),
@@ -573,7 +516,7 @@ const styles = StyleSheet.create({
     borderRadius: RFValue(24),
     paddingHorizontal: RFValue(20),
     paddingLeft: RFValue(50),
-    fontSize: RFValue(16),
+    fontSize: RFValue(20),
     textAlign: 'right',
     color: Colors.primary,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
@@ -696,7 +639,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.white, 
     textAlign: 'center',
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri-Bold' : 'Amiri-Regular'), 
+    fontFamily: 'Amiri-Bold', 
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 1.5 },
     textShadowRadius: 3,
@@ -704,16 +647,5 @@ const styles = StyleSheet.create({
   },
   categoryTitlePressed: {
     color: Colors.primaryDark,
-  },
-  mosqueSilhouetteContainer: {
-    position: 'absolute',
-    bottom: RFValue(-25), 
-    left: 0,
-    right: 0,
-    height: RFValue(160), 
-    zIndex: 1, 
-  },
-  mosqueSilhouette: {
-    flex: 1,
   },
 });

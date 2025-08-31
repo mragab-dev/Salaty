@@ -1,380 +1,445 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ScrollView, Alert, Platform, Modal } from 'react-native';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Surah } from '../types';
 import { fetchSurahList, fetchAyahsForSurah } from '../services/quranService';
-import { QuranStackParamList, MemorizationTestParams } from '../App'; // Adjust path as necessary
+import { QuranStackParamList, MemorizationTestParams } from '../App';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Colors from '../constants/colors';
-import { CheckmarkIcon, ChevronDownIcon, ChevronUpIcon, SearchIcon } from '../components/Icons';
+import { CheckmarkIcon, ChevronDownIcon, SearchIcon, BookOpenIcon, SlidersHorizontalIcon, TrendingUpIcon, CloseIcon, MicIcon, EyeIcon } from '../components/Icons';
 import { RFValue } from 'react-native-responsive-fontsize';
 
 const AnyFlatList = FlatList as any;
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 type ScopeType = 'full_surah' | 'ayah_range';
+type TestMode = 'visual' | 'audio';
 
 const MemorizationSetupScreen: React.FC = () => {
-  const navigation = useNavigation<NavigationProp<QuranStackParamList>>();
-  const [surahs, setSurahs] = useState<Surah[]>([]);
-  const [loadingSurahs, setLoadingSurahs] = useState(true);
-  const [errorSurahs, setErrorSurahs] = useState<string | null>(null);
-  
-  const [step, setStep] = useState(1); // 1: Difficulty, 2: Scope Type, 3: Surah/Range selection
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
-  const [selectedScopeType, setSelectedScopeType] = useState<ScopeType | null>(null);
-  const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
-  const [startAyah, setStartAyah] = useState('');
-  const [endAyah, setEndAyah] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+    const navigation = useNavigation<NavigationProp<QuranStackParamList>>();
+    const insets = useSafeAreaInsets();
+    const [surahs, setSurahs] = useState<Surah[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const surahList = await fetchSurahList();
-        setSurahs(surahList);
-      } catch (err: any) {
-        setErrorSurahs(err.message || "فشل في تحميل قائمة السور.");
-      } finally {
-        setLoadingSurahs(false);
-      }
+    // Form state
+    const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
+    const [scopeType, setScopeType] = useState<ScopeType>('full_surah');
+    const [startAyah, setStartAyah] = useState('');
+    const [endAyah, setEndAyah] = useState('');
+    const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+    const [testMode, setTestMode] = useState<TestMode>('visual');
+
+    // UI state for the modal
+    const [isSurahSelectorVisible, setIsSurahSelectorVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const surahList = await fetchSurahList();
+                setSurahs(surahList);
+            } catch (err: any) {
+                setError(err.message || "فشل في تحميل قائمة السور.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadData();
+    }, []);
+    
+    const isFormValid = () => {
+        if (!selectedSurah || !difficulty || !testMode) return false;
+        if (scopeType === 'ayah_range') {
+            const startNum = parseInt(startAyah, 10);
+            const endNum = parseInt(endAyah, 10);
+            if (isNaN(startNum) || isNaN(endNum) || startNum <= 0 || endNum < startNum || endNum > selectedSurah.total_verses) {
+                return false;
+            }
+        }
+        return true;
     };
-    loadData();
-  }, []);
 
-  const handleDifficultySelect = (difficulty: Difficulty) => {
-    setSelectedDifficulty(difficulty);
-    setStep(2);
-  };
+    const handleSubmit = async () => {
+        if (!isFormValid() || !selectedSurah) {
+            Alert.alert("بيانات غير مكتملة", "يرجى التأكد من اختيار السورة وتحديد نطاق آيات صحيح.");
+            return;
+        }
 
-  const handleScopeTypeSelect = (scope: ScopeType) => {
-    setSelectedScopeType(scope);
-    setStep(3);
-     // Reset surah selection when scope changes to avoid issues with ayah range input
-    setSelectedSurah(null);
-    setSearchQuery(''); // Reset search query
-  };
+        const params: MemorizationTestParams = {
+            difficulty: difficulty,
+            surahId: selectedSurah.id,
+            startAyahNumber: scopeType === 'full_surah' ? 1 : parseInt(startAyah, 10),
+            endAyahNumber: scopeType === 'full_surah' ? selectedSurah.total_verses : parseInt(endAyah, 10),
+            testMode: testMode, // Pass the selected test mode
+        };
+        
+        // For audio test, we navigate but also pass an indicator to show the mic
+        if (testMode === 'audio') {
+            navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: selectedSurah.pages[0] });
+            return;
+        }
 
-  const handleSurahSelect = (surah: Surah) => {
-    setSelectedSurah(surah);
-    if (selectedScopeType === 'full_surah' && selectedDifficulty) {
-      const params: MemorizationTestParams = {
-        difficulty: selectedDifficulty,
-        surahId: surah.id,
-        startAyahNumber: 1,
-        endAyahNumber: surah.total_verses,
-      };
-      navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: surah.pages[0] });
-    }
-    // If ayah_range, selecting a surah here means we proceed to input range for THIS surah.
-    // The UI will update to show range input fields.
-  };
-
-  const handleRangeSubmit = async () => {
-    if (!selectedDifficulty || !selectedSurah || !startAyah || !endAyah) {
-      Alert.alert("خطأ", "يرجى ملء جميع الحقول المطلوبة.");
-      return;
-    }
-    const startNum = parseInt(startAyah, 10);
-    const endNum = parseInt(endAyah, 10);
-
-    if (isNaN(startNum) || isNaN(endNum) || startNum <= 0 || endNum <= 0 || startNum > endNum || endNum > selectedSurah.total_verses) {
-      Alert.alert("خطأ في النطاق", `يرجى إدخال أرقام آيات صالحة. السورة ${selectedSurah.name_arabic} تحتوي على ${selectedSurah.total_verses} آيات.`);
-      return;
-    }
-
-    const params: MemorizationTestParams = {
-      difficulty: selectedDifficulty,
-      surahId: selectedSurah.id,
-      startAyahNumber: startNum,
-      endAyahNumber: endNum,
+        // For visual test, we fetch ayahs here to determine start page
+        try {
+            const ayahsOfSelectedSurah = await fetchAyahsForSurah(selectedSurah.id);
+            const firstAyahInRange = ayahsOfSelectedSurah.find(a => a.verse_number === params.startAyahNumber);
+            const initialPage = firstAyahInRange ? firstAyahInRange.page : selectedSurah.pages[0];
+            navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: initialPage });
+        } catch (e) {
+            Alert.alert("خطأ", "لم نتمكن من تحديد صفحة البداية. سنبدأ من أول صفحة في السورة.");
+            navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: selectedSurah.pages[0] });
+        }
     };
     
-    try {
-      const ayahsOfSelectedSurah = await fetchAyahsForSurah(selectedSurah.id);
-      const firstAyahInRange = ayahsOfSelectedSurah.find(a => a.verse_number === startNum);
-      const initialPage = firstAyahInRange ? firstAyahInRange.page : selectedSurah.pages[0];
-      navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: initialPage });
-    } catch (e) {
-        Alert.alert("خطأ", "لم نتمكن من تحديد صفحة البداية. سنبدأ من أول صفحة في السورة.");
-        navigation.navigate('QuranPageViewer', { testParams: params, initialPageNumber: selectedSurah.pages[0] });
-    }
-  };
-  
-  const filteredSurahs = surahs.filter(surah => 
-    surah.name_arabic.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    surah.name_english.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    surah.id.toString().includes(searchQuery)
-  );
+    const filteredSurahs = surahs.filter(surah =>
+        surah.name_arabic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        surah.name_english.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(surah.id).includes(searchQuery)
+    );
 
-  const renderHeader = (title: string, currentStep: number) => (
-    <View style={styles.stepHeader}>
-      <Text style={styles.stepTitle}>{title}</Text>
-      {currentStep > 1 && (
-        <TouchableOpacity onPress={() => {
-            if(currentStep === 3 && selectedScopeType === 'ayah_range' && selectedSurah) {
-                setSelectedSurah(null); // Go back to Surah selection within range mode
-                setStartAyah('');
-                setEndAyah('');
-            } else if (currentStep === 3) { // Coming from surah list (full_surah or ayah_range initial selection)
-                setStep(2); 
-                setSelectedSurah(null); 
-                setSelectedScopeType(null); // Go back to scope type selection
+    const renderSurahSelectItem = ({ item }: { item: Surah }) => (
+        <TouchableOpacity
+            style={styles.surahItem}
+            onPress={() => {
+                setSelectedSurah(item);
+                setIsSurahSelectorVisible(false);
                 setSearchQuery('');
-            } else if (currentStep === 2) {
-                 setStep(1);
-                 setSelectedDifficulty(null);
-            }
-        }} style={styles.backButton}>
-          <Text style={styles.backButtonText}>رجوع</Text>
+            }}
+        >
+            <Text style={styles.surahName}>{`${item.id}. ${item.name_arabic}`}</Text>
+            <Text style={styles.surahInfo}>{`${item.revelation_type === 'Meccan' ? 'مكية' : 'مدنية'} - ${item.total_verses} آيات`}</Text>
         </TouchableOpacity>
-      )}
-    </View>
-  );
+    );
 
-  if (loadingSurahs) return <LoadingSpinner text="جاري تحميل البيانات..." style={styles.centered} />;
-  if (errorSurahs) return <View style={styles.centered}><Text style={styles.errorText}>{errorSurahs}</Text></View>;
+    if (loading) return <LoadingSpinner text="جاري تحميل البيانات..." style={styles.centered} />;
+    if (error) return <View style={styles.centered}><Text style={styles.errorText}>{error}</Text></View>;
 
-  const renderContent = () => {
-    if (step === 1) {
-      return (
-        <View>
-          {renderHeader("الخطوة ١: اختر مستوى الصعوبة", 1)}
-          <TouchableOpacity style={styles.optionButton} onPress={() => handleDifficultySelect('easy')}>
-            <Text style={styles.optionButtonText}>سهل (إخفاء ~٢٠٪ من الكلمات)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionButton} onPress={() => handleDifficultySelect('medium')}>
-            <Text style={styles.optionButtonText}>متوسط (إخفاء ~٤٠٪ من الكلمات)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionButton} onPress={() => handleDifficultySelect('hard')}>
-            <Text style={styles.optionButtonText}>صعب (إخفاء ~٦٠٪ من الكلمات)</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+    return (
+        <View style={styles.screenWrapper}>
+            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
 
-    if (step === 2 && selectedDifficulty) {
-      return (
-        <View>
-          {renderHeader("الخطوة ٢: اختر نطاق الاختبار", 2)}
-          <TouchableOpacity style={styles.optionButton} onPress={() => handleScopeTypeSelect('full_surah')}>
-            <Text style={styles.optionButtonText}>سورة كاملة</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionButton} onPress={() => handleScopeTypeSelect('ayah_range')}>
-            <Text style={styles.optionButtonText}>تحديد نطاق آيات</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <CheckmarkIcon color={Colors.primary} size={RFValue(20)} />
+                        <Text style={styles.sectionTitle}>1. اختر نوع الاختبار</Text>
+                    </View>
+                    <View style={styles.segmentedControl}>
+                        <TouchableOpacity
+                            style={[styles.segment, testMode === 'visual' && styles.segmentActive]}
+                            onPress={() => setTestMode('visual')}
+                        >
+                            <EyeIcon size={RFValue(16)} color={testMode === 'visual' ? Colors.white : Colors.primary}/>
+                            <Text style={[styles.segmentText, testMode === 'visual' && styles.segmentTextActive, { marginLeft: 5 }]}>مرئي (إخفاء كلمات)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.segment, testMode === 'audio' && styles.segmentActive]}
+                            onPress={() => setTestMode('audio')}
+                        >
+                            <MicIcon size={RFValue(16)} color={testMode === 'audio' ? Colors.white : Colors.primary}/>
+                            <Text style={[styles.segmentText, testMode === 'audio' && styles.segmentTextActive, { marginLeft: 5 }]}>صوتي (تسميع)</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
-    if (step === 3 && selectedDifficulty && selectedScopeType) {
-      if ((selectedScopeType === 'full_surah' && !selectedSurah) || (selectedScopeType === 'ayah_range' && !selectedSurah)) {
-        return (
-          <View style={{flex:1}}> {/* This View is crucial for FlatList to take space */}
-            {renderHeader(selectedScopeType === 'full_surah' ? "الخطوة ٣: اختر السورة" : "الخطوة ٣أ: اختر السورة للنطاق", 3)}
-            <View style={styles.searchBarContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="ابحث باسم السورة أو رقمها..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholderTextColor={Colors.textLight}
-              />
-              <View style={styles.searchIconContainer}><SearchIcon color={Colors.primary} size={RFValue(20)} /></View>
-            </View>
-            <AnyFlatList
-              data={filteredSurahs}
-              keyExtractor={(item: Surah) => item.id.toString()}
-              renderItem={({ item }: { item: Surah }) => (
-                <TouchableOpacity style={styles.surahItem} onPress={() => handleSurahSelect(item)}>
-                  <Text style={styles.surahName}>{item.id}. {item.name_arabic} ({item.name_english})</Text>
-                  <Text style={styles.surahInfo}>{item.revelation_type === 'Meccan' ? 'مكية' : 'مدنية'} - {item.total_verses} آيات</Text>
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <BookOpenIcon color={Colors.primary} size={RFValue(20)} />
+                        <Text style={styles.sectionTitle}>2. اختر السورة</Text>
+                    </View>
+                    <TouchableOpacity style={styles.selectorButton} onPress={() => setIsSurahSelectorVisible(true)}>
+                        <Text style={styles.selectorButtonText}>{selectedSurah ? selectedSurah.name_arabic : 'اختر السورة...'}</Text>
+                        <ChevronDownIcon />
+                    </TouchableOpacity>
+                </View>
+
+                {selectedSurah && (
+                    <>
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <SlidersHorizontalIcon color={Colors.primary} size={RFValue(20)} />
+                                <Text style={styles.sectionTitle}>3. حدد النطاق</Text>
+                            </View>
+                            <View style={styles.segmentedControl}>
+                                <TouchableOpacity
+                                    style={[styles.segment, scopeType === 'full_surah' && styles.segmentActive]}
+                                    onPress={() => setScopeType('full_surah')}
+                                >
+                                    <Text style={[styles.segmentText, scopeType === 'full_surah' && styles.segmentTextActive]}>سورة كاملة</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.segment, scopeType === 'ayah_range' && styles.segmentActive]}
+                                    onPress={() => setScopeType('ayah_range')}
+                                >
+                                    <Text style={[styles.segmentText, scopeType === 'ayah_range' && styles.segmentTextActive]}>تحديد نطاق</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {scopeType === 'ayah_range' && (
+                                <View style={styles.rangeInputContainer}>
+                                    <TextInput
+                                        style={styles.inputField}
+                                        placeholder={`من آية (1-${selectedSurah.total_verses})`}
+                                        keyboardType="number-pad"
+                                        value={startAyah}
+                                        onChangeText={setStartAyah}
+                                        placeholderTextColor={Colors.textLight}
+                                    />
+                                    <TextInput
+                                        style={styles.inputField}
+                                        placeholder={`إلى آية (1-${selectedSurah.total_verses})`}
+                                        keyboardType="number-pad"
+                                        value={endAyah}
+                                        onChangeText={setEndAyah}
+                                        placeholderTextColor={Colors.textLight}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                        { testMode === 'visual' &&
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <TrendingUpIcon color={Colors.primary} size={RFValue(20)} />
+                                <Text style={styles.sectionTitle}>4. اختر الصعوبة</Text>
+                            </View>
+                            <View style={styles.segmentedControl}>
+                                {([['easy', 'سهل'], ['medium', 'متوسط'], ['hard', 'صعب']] as const).map(([level, label]) => (
+                                    <TouchableOpacity
+                                        key={level}
+                                        style={[styles.segment, difficulty === level && styles.segmentActive]}
+                                        onPress={() => setDifficulty(level)}
+                                    >
+                                        <Text style={[styles.segmentText, difficulty === level && styles.segmentTextActive]}>{label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                        }
+                    </>
+                )}
+
+                <TouchableOpacity
+                    style={[styles.submitButton, !isFormValid() && styles.disabledButton]}
+                    onPress={handleSubmit}
+                    disabled={!isFormValid()}
+                >
+                    <CheckmarkIcon color={Colors.primary} size={RFValue(20)} />
+                    <Text style={styles.submitButtonText}>بدء الاختبار</Text>
                 </TouchableOpacity>
-              )}
-              ListEmptyComponent={<Text style={styles.emptyListText}>لم يتم العثور على سور.</Text>}
-              style={{ flex: 1 }} // Ensure FlatList expands
-            />
-          </View>
-        );
-      } else if (selectedScopeType === 'ayah_range' && selectedSurah) {
-        // Reverting to ScrollView to handle potential layout/keyboard issues.
-        return (
-          <ScrollView>
-            {renderHeader(`الخطوة ٣ب: حدد الآيات من سورة ${selectedSurah.name_arabic}`, 3)}
-            <Text style={styles.infoText}>السورة تحتوي على {selectedSurah.total_verses} آيات.</Text>
-            <TextInput
-              style={styles.inputField}
-              placeholder="من آية رقم"
-              keyboardType="number-pad"
-              value={startAyah}
-              onChangeText={setStartAyah}
-              placeholderTextColor={Colors.textLight}
-            />
-            <TextInput
-              style={styles.inputField}
-              placeholder="إلى آية رقم"
-              keyboardType="number-pad"
-              value={endAyah}
-              onChangeText={setEndAyah}
-              placeholderTextColor={Colors.textLight}
-            />
-            <TouchableOpacity style={styles.submitButton} onPress={handleRangeSubmit}>
-              <CheckmarkIcon color={Colors.white} size={RFValue(20)} />
-              <Text style={styles.submitButtonText}>بدء الاختبار</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        );
-      }
-    }
-    return null; // Should not reach here if logic is correct
-  };
+            </ScrollView>
 
-
-  return (
-    <View style={styles.container}>
-      {renderContent()}
-    </View>
-  );
+            <Modal
+                animationType="slide"
+                visible={isSurahSelectorVisible}
+                onRequestClose={() => setIsSurahSelectorVisible(false)}
+            >
+                <View style={[styles.modalView, { paddingTop: insets.top }]}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>اختر سورة</Text>
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setIsSurahSelectorVisible(false)}>
+                            <CloseIcon size={RFValue(24)} color={Colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.searchBarContainer}>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="ابحث..."
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholderTextColor={Colors.textLight}
+                            autoFocus={true}
+                        />
+                        <View style={styles.searchIconContainer}><SearchIcon color={Colors.primary} size={RFValue(18)} /></View>
+                    </View>
+                    <AnyFlatList
+                        data={filteredSurahs}
+                        renderItem={renderSurahSelectItem}
+                        keyExtractor={(item: Surah) => String(item.id)}
+                        style={styles.modalSurahList}
+                    />
+                </View>
+            </Modal>
+        </View>
+    );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    padding: RFValue(20), 
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: RFValue(16),
-  },
-  stepHeader: {
-    marginBottom: RFValue(20),
-    paddingBottom: RFValue(10),
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.secondary,
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  stepTitle: {
-    fontSize: RFValue(20),
-    fontWeight: 'bold',
-    color: Colors.primary,
-    textAlign: 'right',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
-  },
-  backButton: {
-    paddingVertical: RFValue(5),
-    paddingHorizontal: RFValue(10),
-    backgroundColor: Colors.moonlight,
-    borderRadius: RFValue(5),
-  },
-  backButtonText: {
-    color: Colors.primary,
-    fontSize: RFValue(14),
-  },
-  optionButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: RFValue(15),
-    paddingHorizontal: RFValue(20),
-    borderRadius: RFValue(8),
-    marginBottom: RFValue(12),
-    alignItems: 'center',
-  },
-  optionButtonText: {
-    color: Colors.white,
-    fontSize: RFValue(16),
-    fontWeight: '500',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
-  },
-  searchBarContainer: {
-    marginBottom: RFValue(15),
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  searchInput: {
-    flex: 1,
-    height: RFValue(45),
-    backgroundColor: Colors.white,
-    borderRadius: RFValue(22),
-    paddingHorizontal: RFValue(20),
-    paddingRight: RFValue(45), 
-    fontSize: RFValue(15),
-    textAlign: 'right',
-    color: Colors.primary,
-    borderWidth: 1,
-    borderColor: Colors.divider,
-  },
-  searchIconContainer: {
-    position: 'absolute',
-    left: RFValue(15),
-    top: '50%',
-    transform: [{translateY: -RFValue(10)}] 
-  },
-  surahItem: {
-    backgroundColor: Colors.white,
-    padding: RFValue(15),
-    borderRadius: RFValue(8),
-    marginBottom: RFValue(10),
-    borderWidth: 1,
-    borderColor: Colors.moonlight,
-  },
-  surahName: {
-    fontSize: RFValue(17),
-    fontWeight: '600',
-    color: Colors.arabicText,
-    textAlign: 'right',
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'),
-  },
-  surahInfo: {
-    fontSize: RFValue(13),
-    color: Colors.accent,
-    textAlign: 'right',
-    marginTop: RFValue(3),
-  },
-  emptyListText: {
-    textAlign: 'center',
-    color: Colors.accent,
-    marginTop: RFValue(20),
-  },
-  infoText: {
-    fontSize: RFValue(15),
-    color: Colors.text,
-    textAlign: 'right',
-    marginBottom: RFValue(15),
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-  },
-  inputField: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: RFValue(15),
-    paddingVertical: RFValue(12),
-    borderRadius: RFValue(8),
-    fontSize: RFValue(16),
-    textAlign: 'right',
-    marginBottom: RFValue(15),
-    borderWidth: 1,
-    borderColor: Colors.divider,
-    color: Colors.primary,
-  },
-  submitButton: {
-    backgroundColor: Colors.secondary,
-    paddingVertical: RFValue(15),
-    borderRadius: RFValue(8),
-    alignItems: 'center',
-    flexDirection: 'row-reverse',
-    justifyContent: 'center',
-  },
-  submitButtonText: {
-    color: Colors.primary,
-    fontSize: RFValue(16),
-    fontWeight: 'bold',
-    marginLeft: RFValue(8),
-  },
+    screenWrapper: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    container: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: RFValue(16),
+    },
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    errorText: {
+        color: Colors.error,
+        fontSize: RFValue(16),
+    },
+    section: {
+        backgroundColor: Colors.white,
+        borderRadius: RFValue(12),
+        padding: RFValue(16),
+        marginBottom: RFValue(20),
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    sectionHeader: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        marginBottom: RFValue(12),
+    },
+    sectionTitle: {
+        fontSize: RFValue(18),
+        fontWeight: 'bold',
+        color: Colors.primary,
+        marginRight: RFValue(10),
+        fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    },
+    selectorButton: {
+        flexDirection: 'row-reverse',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: RFValue(12),
+        borderRadius: RFValue(8),
+        borderWidth: 1,
+        borderColor: Colors.divider,
+    },
+    selectorButtonText: {
+        fontSize: RFValue(16),
+        color: Colors.text,
+    },
+    searchBarContainer: {
+        margin: RFValue(10),
+    },
+    searchInput: {
+        height: RFValue(40),
+        backgroundColor: Colors.moonlight,
+        borderRadius: RFValue(8),
+        paddingHorizontal: RFValue(15),
+        paddingLeft: RFValue(40),
+        fontSize: RFValue(15),
+        textAlign: 'right',
+        color: Colors.primary,
+    },
+    searchIconContainer: {
+        position: 'absolute',
+        left: RFValue(12),
+        top: '50%',
+        transform: [{ translateY: -RFValue(9) }],
+    },
+    surahItem: {
+        padding: RFValue(12),
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.moonlight,
+    },
+    surahName: {
+        fontSize: RFValue(16),
+        color: Colors.primary,
+        textAlign: 'right',
+    },
+    surahInfo: {
+        fontSize: RFValue(12),
+        color: Colors.accent,
+        textAlign: 'right',
+        marginTop: RFValue(2),
+    },
+    segmentedControl: {
+        flexDirection: 'row-reverse',
+        width: '100%',
+        backgroundColor: Colors.moonlight,
+        borderRadius: RFValue(8),
+        overflow: 'hidden',
+    },
+    segment: {
+        flex: 1,
+        paddingVertical: RFValue(10),
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row-reverse',
+    },
+    segmentActive: {
+        backgroundColor: Colors.primary,
+    },
+    segmentText: {
+        fontSize: RFValue(14),
+        color: Colors.primary,
+        fontWeight: '500',
+    },
+    segmentTextActive: {
+        color: Colors.white,
+    },
+    rangeInputContainer: {
+        flexDirection: 'row-reverse',
+        marginTop: RFValue(12),
+        justifyContent: 'space-between',
+    },
+    inputField: {
+        backgroundColor: Colors.white,
+        paddingHorizontal: RFValue(15),
+        paddingVertical: RFValue(10),
+        borderRadius: RFValue(8),
+        fontSize: RFValue(16),
+        textAlign: 'right',
+        borderWidth: 1,
+        borderColor: Colors.divider,
+        color: Colors.primary,
+        width: '48%',
+    },
+    submitButton: {
+        backgroundColor: Colors.secondary,
+        paddingVertical: RFValue(15),
+        borderRadius: RFValue(8),
+        alignItems: 'center',
+        flexDirection: 'row-reverse',
+        justifyContent: 'center',
+        marginTop: RFValue(10),
+    },
+    submitButtonText: {
+        color: Colors.primary,
+        fontSize: RFValue(16),
+        fontWeight: 'bold',
+        marginRight: RFValue(8),
+    },
+    disabledButton: {
+        backgroundColor: Colors.grayMedium,
+        opacity: 0.7,
+    },
+    // Modal Styles
+    modalView: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    modalHeader: {
+        flexDirection: 'row-reverse',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: RFValue(15),
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.divider,
+    },
+    modalTitle: {
+        fontSize: RFValue(20),
+        fontWeight: 'bold',
+        color: Colors.primary,
+    },
+    closeButton: {
+        padding: RFValue(5),
+    },
+    modalSurahList: {
+        flex: 1,
+    }
 });
 
 export default MemorizationSetupScreen;

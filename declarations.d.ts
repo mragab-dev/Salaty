@@ -9,11 +9,7 @@
  */
 declare var require: (path: string) => any;
 
-// Optional: If you want more specific typing for image assets when using 'require',
-// you could also declare modules for common image types. However, the global
-// 'require' declaration above is usually sufficient to resolve the "Cannot find name" error.
-// Example for more specific image typing (if you were to use import syntax more often):
-/*
+// Declarations for image assets to allow importing them in TypeScript files.
 declare module '*.png' {
   const value: import('react-native').ImageSourcePropType;
   export default value;
@@ -28,4 +24,9 @@ declare module '*.jpeg' {
   const value: import('react-native').ImageSourcePropType;
   export default value;
 }
-*/
+
+// Declaration for audio assets
+declare module '*.mp3' {
+  const value: any; // Or a more specific type if available, e.g., from expo-av
+  export default value;
+}

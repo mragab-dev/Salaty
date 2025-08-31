@@ -1,0 +1,184 @@
+Product Requirements Document: Salaty (صلاتي)
+
+Version: 1.0
+Date: October 26, 2023
+Author: World-Class Senior Frontend Engineer
+1. Introduction & Executive Summary
+
+Salaty (صلاتي) is a comprehensive, mobile-first Islamic companion application designed to be an all-in-one spiritual tool for the modern Muslim. The app seamlessly integrates essential daily worship practices into a beautiful, intuitive, and spiritually uplifting user interface. It aims to solve the problem of needing multiple applications for different religious needs by providing a single, reliable source for prayer times, Quran reading and listening, Adhkar (remembrances), activity tracking, and intelligent spiritual guidance through an AI-powered assistant.
+
+The core mission of Salaty is to enrich the user's daily worship, making it more accessible, consistent, and meaningful.
+2. Goals & Objectives
+
+    Primary Goal: To provide a holistic and reliable digital platform that supports and enhances a Muslim's daily religious practices.
+
+    Key Objectives:
+
+        Deliver highly accurate, location-aware prayer times and Qibla direction.
+
+        Offer an immersive, feature-rich Quran experience that caters to both reading and listening.
+
+        Facilitate the practice of daily Adhkar and Tasbih with user-friendly tools and reminders.
+
+        Provide personalized spiritual support and answer religious queries through an intelligent chatbot.
+
+        Motivate users to maintain consistency in their worship through a visual reporting and activity tracking system.
+
+        Ensure a high-quality user experience through a beautiful, responsive, and accessible design with offline capabilities.
+
+3. Target Audience
+
+The primary target audience is the global Muslim population who own smartphones. This includes:
+
+    Practicing Muslims: Individuals who seek a tool to organize and deepen their existing daily worship routines.
+
+    Youth & New Muslims: Individuals looking for an accessible, modern, and educational tool to learn and build consistent religious habits.
+
+    Busy Professionals & Students: Users who need timely reminders and quick access to religious resources throughout their busy day.
+
+    Arabic & Non-Arabic Speakers: The UI is primarily in Arabic, but Quran translations and other elements cater to a wider audience.
+
+4. Core Features & Requirements
+4.1 Prayer Times & Qibla Module
+
+    Accurate Prayer Times: Automatically calculate prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha, Sunrise) based on the user's device location.
+
+    Location Permission Handling: Gracefully requests location permissions and provides fallback (mock/approximate times) if denied.
+
+    Qibla Compass: An animated compass that uses device location and magnetometer to provide an accurate Qibla direction. It includes visual cues and guides for proper usage.
+
+    Customizable Notifications:
+
+        Enable/disable notifications globally or for individual prayers.
+
+        Set pre-prayer reminders with a customizable offset (e.g., 15 minutes before Adhan).
+
+        Select from multiple Adhan sounds (e.g., Makki, Kurdi) or use the device's default notification sound.
+
+    Digital Tasbih:
+
+        Includes a "traditional" mode for standard post-prayer tasbih (SubhanAllah, Alhamdulillah, Allahu Akbar).
+
+        Features a "target" mode for custom Dhikr counts and a "free" mode for open-ended counting.
+
+        Provides haptic feedback on each tap for a tactile experience.
+
+        Logs completed Tasbih sessions to the user's activity report.
+
+4.2 Quran Module
+
+    Full Quran Index: A searchable list of all 114 Surahs, displaying Surah name (Arabic/English), revelation type, verse count, and starting page number.
+
+    Page-Based Mushaf Viewer: A primary reading interface that mimics the layout of a physical Quran, displaying full pages.
+
+    Ayah-Level Interaction: Tapping any Ayah opens an action sheet with the following options:
+
+        Audio Playback: Play the full Surah starting from the selected Ayah.
+
+        Bookmarking: Save or remove a bookmark for the Ayah.
+
+        Tafseer (Exegesis): View the explanation of the Ayah in a modal, with the ability to switch between different Tafseer editions (e.g., Tafsir al-Muyassar).
+
+        Copy & Share: Copy the Ayah text or share it via native device sharing.
+
+    Advanced Audio System:
+
+        Reciter Selection: Choose from a list of multiple renowned reciters.
+
+        Audio Downloading: Download full Surahs by selected reciters for offline listening.
+
+        Continuous Playback: The player automatically advances to the next Ayah and turns pages as needed.
+
+        Playback Controls: A persistent player UI appears when audio is active, allowing the user to stop playback or change the reciter.
+
+    Memorization Test:
+
+        An interactive tool to help users test and strengthen their memorization.
+
+        Users can select a Surah, a specific range of Ayahs, and a difficulty level (easy, medium, hard).
+
+        In "Visual Mode," the app hides a percentage of words from the selected Ayahs, challenging the user to recall them. A reveal/hide toggle is available.
+
+        Completed tests are logged in the user's activity reports.
+
+4.3 Adhkar Module
+
+    Categorized Adhkar: Provides a list of Adhkar categories (e.g., Morning, Evening, Sleep).
+
+    Adhkar Viewer: Displays individual Dhikr with its Arabic text, translation/virtue, reference, and a counter for recitations.
+
+    Counter Interaction: Tapping the counter button decrements the count. Upon completion, the UI updates, and the user is advanced to the next Dhikr.
+
+    Customizable Reminders: Users can schedule daily repeating notifications for key Adhkar categories (Morning, Evening, etc.) from the Settings screen.
+
+    Favorites: Users can mark favorite Adhkar categories for quick access.
+
+4.4 "Salaty" AI Chatbot Assistant
+
+    Intelligent Spiritual Guidance: An AI-powered chatbot accessible via a draggable Floating Action Button (FAB).
+
+    Natural Language Understanding: Parses user input in Arabic to provide relevant responses based on a local knowledge base.
+
+    Core Capabilities:
+
+        Provides Ayahs, Duas, and Islamic wisdom for emotional states (sadness, anxiety, etc.).
+
+        Answers general Islamic questions and provides information about Surahs and Prophets' stories.
+
+        Answers questions about app features and provides navigation hints.
+
+    Contextual Follow-up: If a user expresses an emotional state, the app can schedule a gentle follow-up notification hours later to check in on them.
+
+    Interactive Responses: Responses can include deep links to navigate the user directly to a specific Ayah in the Quran reader or an Adhkar category.
+
+4.5 Reports & Activity Tracking
+
+    Daily Activity Checklist: Displays a list of key trackable daily activities (e.g., Morning Adhkar, Quran Reading).
+
+    Weekly Progress Grid: A visual grid showing the user's consistency over the past seven days for all trackable activities.
+
+    Streak Calculation: Shows a "streak" flame icon for activities completed on consecutive days, providing motivation.
+
+    Automatic Logging: The app automatically logs activities when a user finishes an Adhkar category, reads the Quran, or completes a Tasbih session.
+
+5. User Interface (UI) & User Experience (UX) Design
+
+    Aesthetic: A modern, clean, and spiritually resonant Islamic aesthetic. The design heavily utilizes a sophisticated color palette of deep blues, soft golds, and warm creams.
+
+    Layout & Responsiveness: The app is designed with a Right-to-Left (RTL) layout first. It uses responsive font sizing (RFValue) to ensure a consistent and readable experience across different screen sizes.
+
+    Typography: Utilizes specific Arabic fonts like Amiri-Regular, Amiri-Bold, and UthmanTNB to provide an authentic and beautiful script, especially for Quranic text.
+
+    Key UI Elements:
+
+        Animated Splash Screen: A beautiful, animated entry point featuring the app logo and an inspirational quote to set a spiritual tone.
+
+        Custom App Header: A consistent header across screens for a unified look and feel.
+
+        Draggable FAB: A non-intrusive, always-accessible entry point to the AI chatbot.
+
+        Visual Feedback: Uses haptics, animations, and visual cues (e.g., progress bars, completion states) to create an interactive and rewarding experience.
+
+6. Technical Stack & Non-Functional Requirements
+
+    Platform: React Native with Expo
+
+    Navigation: React Navigation (Bottom Tab Navigator, Native Stack Navigator)
+
+    Prayer Times Calculation: adhan library
+
+    Date/Time Handling: moment-timezone
+
+    UI Components: react-native-svg for custom icons, expo-linear-gradient for rich backgrounds.
+
+    Asynchronous Storage: @react-native-async-storage/async-storage for persisting user settings, bookmarks, chat history, and activity logs.
+
+    Permissions:
+
+        Location: Required for accurate prayer times and Qibla.
+
+        Notifications: Required for Adhan alerts and reminders.
+
+        Microphone: Required for future implementation of the audio-based memorization test.
+
+    Offline Functionality: Downloaded Quran audio allows for listening without an internet connection. Core app functionality (like static Adhkar content) is available offline.

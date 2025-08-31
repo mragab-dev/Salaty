@@ -1,14 +1,16 @@
-import React, { useRef } from 'react';
-import { StyleSheet, PanResponder, Animated, TouchableOpacity, Dimensions, View, Platform } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { StyleSheet, PanResponder, Animated, TouchableOpacity, Dimensions, View, Platform, Easing, I18nManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainerRef } from '@react-navigation/native';
 import { AppStackParamList } from '../App'; 
-import { ChatBubbleIcon } from './Icons';
+import { SalatyLogoIcon } from './Icons';
 import Colors from '../constants/colors';
 import { RFValue } from 'react-native-responsive-fontsize';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const FAB_SIZE = RFValue(60);
 const MARGIN = RFValue(20);
+const TAB_BAR_HEIGHT = RFValue(60); // Approximate height to avoid overlap
 
 interface DraggableChatbotFABProps {
   navigationRef: React.RefObject<NavigationContainerRef<AppStackParamList> | null>;
@@ -18,12 +20,32 @@ const DraggableChatbotFAB: React.FC<DraggableChatbotFABProps> = ({ navigationRef
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = Dimensions.get('window');
 
-  // Calculate initial position more accurately considering safe areas
-  const initialX = windowWidth - FAB_SIZE - MARGIN;
-  const initialY = windowHeight - FAB_SIZE - MARGIN - insets.bottom;
-
+  // RTL-aware initial position
+  const isRtl = I18nManager.isRTL;
+  const initialX = isRtl ? MARGIN : windowWidth - FAB_SIZE - MARGIN;
+  const initialY = windowHeight - FAB_SIZE - MARGIN - insets.bottom - TAB_BAR_HEIGHT;
 
   const pan = useRef(new Animated.ValueXY({ x: initialX, y: initialY })).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2, // Glow expands
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [pulseAnim]);
 
   const handlePress = () => {
     navigationRef.current?.navigate('Chatbot');
@@ -40,27 +62,31 @@ const DraggableChatbotFAB: React.FC<DraggableChatbotFABProps> = ({ navigationRef
         pan.setValue({ x: 0, y: 0 });
       },
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false, // Position changes are layout changes
+        useNativeDriver: false,
       }),
       onPanResponderRelease: (e, gestureState) => {
         pan.flattenOffset();
         
-        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5 && Math.abs(gestureState.vx) < 0.1 && Math.abs(gestureState.vy) < 0.1 ) {
+        // Check if it was a tap or a drag
+        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
           handlePress();
         } else {
-          // Boundary clamping logic
-          let newX = (pan.x as any)._value;
+          // It's a drag, so snap to the nearest edge
           let newY = (pan.y as any)._value;
 
-          // Clamp X
-          if (newX < MARGIN) newX = MARGIN;
-          if (newX > windowWidth - FAB_SIZE - MARGIN) newX = windowWidth - FAB_SIZE - MARGIN;
-          
-          // Clamp Y
+          // Clamp Y position
           const topBoundary = MARGIN + insets.top;
-          const bottomBoundary = windowHeight - FAB_SIZE - MARGIN - insets.bottom;
+          const bottomBoundary = windowHeight - FAB_SIZE - MARGIN - insets.bottom - TAB_BAR_HEIGHT;
           if (newY < topBoundary) newY = topBoundary;
           if (newY > bottomBoundary) newY = bottomBoundary;
+
+          let newX = 0;
+          // Snap to left or right edge based on release position
+          if ((pan.x as any)._value + (FAB_SIZE / 2) > windowWidth / 2) {
+              newX = windowWidth - FAB_SIZE - MARGIN; // Snap right
+          } else {
+              newX = MARGIN; // Snap left
+          }
 
           Animated.spring(pan, {
             toValue: { x: newX, y: newY },
@@ -78,19 +104,26 @@ const DraggableChatbotFAB: React.FC<DraggableChatbotFABProps> = ({ navigationRef
       style={[
         styles.fabContainer,
         {
-          transform: [{ translateX: pan.x }, { translateY: pan.y }],
-        },
+          top: pan.y,
+          left: pan.x,
+        }
       ]}
       {...panResponder.panHandlers}
     >
+      <Animated.View style={[styles.glow, { transform: [{ scale: pulseAnim }], opacity: pulseAnim.interpolate({ inputRange: [1, 1.2], outputRange: [0.7, 1] }) }]} />
       <TouchableOpacity 
         style={styles.fabButton} 
-        onPress={handlePress} // Allows tap if not dragged significantly
+        onPress={handlePress}
         activeOpacity={0.8}
         accessibilityLabel="افتح شات بوت صلاتي"
         accessibilityRole="button"
       >
-        <ChatBubbleIcon color={Colors.primary} size={FAB_SIZE * 0.55} />
+        <LinearGradient
+          colors={[Colors.secondaryLight, Colors.secondary]}
+          style={styles.gradient}
+        >
+          <SalatyLogoIcon color={Colors.primary} size={FAB_SIZE * 0.55} />
+        </LinearGradient>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -101,26 +134,39 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: FAB_SIZE,
     height: FAB_SIZE,
-    zIndex: 1000, // Ensure it's on top
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glow: {
+    position: 'absolute',
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    backgroundColor: Colors.secondary,
+    opacity: 0.5,
   },
   fabButton: {
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: Colors.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: Colors.black,
-        shadowOffset: { width: 0, height: 3 },
+        shadowColor: Colors.secondary,
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 4,
+        shadowRadius: 5,
       },
       android: {
-        elevation: 6,
+        elevation: 8,
       },
     }),
+  },
+  gradient: {
+    flex: 1,
+    borderRadius: FAB_SIZE / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

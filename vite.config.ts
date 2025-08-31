@@ -1,4 +1,5 @@
 import path from 'path';
+// @ts-ignore: vite types may not be installed in this environment
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {

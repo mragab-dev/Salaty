@@ -1,13 +1,6 @@
-
 import { PrayerTimes, Ayah, AdhanSoundOption, NotificationSettings, Prayer } from './types'; 
 
 export const APP_NAME = "صلاتي - Salaty";
-
-// IMPORTANT: In a React Native build, process.env.API_KEY is typically set up
-// using a library like 'react-native-dotenv' which embeds it during the build process.
-// The guideline to use process.env.API_KEY directly is followed.
-// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-
 
 // Placeholder for API endpoints if you choose to use real APIs later
 export const PRAYER_TIMES_API_ENDPOINT = "https://api.aladhan.com/v1/timings"; // Example
@@ -62,24 +55,28 @@ export const PRE_NOTIFICATION_OFFSET_OPTIONS = [5, 10, 15, 20, 30];
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   masterEnabled: true,
-  sound: 'default',
+  sound: 'makki', // تغيير من 'default' إلى 'makki' لضمان عمل صوت الأذان
   prayers: {
     fajr: true,
     dhuhr: true,
     asr: true,
     maghrib: true,
     isha: true,
+    sunrise: false,
   },
-  preNotificationEnabled: false,
+  preNotificationEnabled: true, // تفعيل إشعارات اقتراب الصلاة افتراضياً
   preNotificationOffset: 15,
 };
 
 // AsyncStorage keys
 export const ASYNC_STORAGE_NOTIFICATION_SETTINGS_KEY = 'SalatyNotificationSettings';
 export const ASYNC_STORAGE_PRAYER_NOTIFICATION_IDS_KEY = 'SalatyPrayerNotificationIds';
-export const ASYNC_STORAGE_BOOKMARKS_KEY = 'SalatyQuranBookmarks'; 
+export const ASYNC_STORAGE_LATEST_PRAYER_TIMES = 'SalatyLatestPrayerTimes';
+export const ASYNC_STORAGE_LAST_NOTIFICATION_SCHEDULE_DATE = 'SalatyLastNotificationScheduleDate';
+export const ASYNC_STORAGE_BOOKMARKS_KEY = 'SalatyQuranBookmarks';
 export const ASYNC_STORAGE_FONT_SIZE_KEY = 'SalatyQuranFontSize';
 export const ASYNC_STORAGE_SELECTED_RECITER_ID_KEY = 'SalatyQuranSelectedReciterId'; 
+export const ASYNC_STORAGE_LAST_READ_PAGE_KEY = 'SalatyLastReadPage';
 export const ASYNC_STORAGE_CHAT_HISTORY_KEY = 'SalatyChatHistory';
 export const ASYNC_STORAGE_ADHKAR_REMINDERS_KEY = 'SalatyAdhkarReminders';
 export const ASYNC_STORAGE_ACTIVITY_LOGS_KEY = 'SalatyActivityLogs';

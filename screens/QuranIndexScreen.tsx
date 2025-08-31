@@ -5,8 +5,13 @@ import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { Surah } from '../types';
 import { fetchSurahList } from '../services/quranService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { BookOpenIcon, ListBulletIcon, SearchIcon } from '../components/Icons';
+import { BookOpenIcon, ListBulletIcon, SearchIcon, CloseIcon } from '../components/Icons';
 import Colors from '../constants/colors';
+import { RFValue } from 'react-native-responsive-fontsize';
+import AppHeader from '../components/AppHeader';
+import { AppStackParamList } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ASYNC_STORAGE_LAST_READ_PAGE_KEY } from '../constants';
 
 const AnyFlatList = FlatList as any;
 
@@ -21,12 +26,19 @@ const QuranIndexScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [lastReadPage, setLastReadPage] = useState<number | null>(null);
 
   const loadSurahsData = async () => {
     try {
       setLoading(true);
-      const surahList = await fetchSurahList();
+      const [surahList, pageStr] = await Promise.all([
+        fetchSurahList(),
+        AsyncStorage.getItem(ASYNC_STORAGE_LAST_READ_PAGE_KEY)
+      ]);
       setSurahs(surahList);
+      if (pageStr) {
+        setLastReadPage(parseInt(pageStr, 10));
+      }
       setError(null);
     } catch (err: any) {
       setError(err.message || "فشل في تحميل فهرس السور.");
@@ -39,6 +51,17 @@ const QuranIndexScreen: React.FC = () => {
   useEffect(() => {
     loadSurahsData();
   }, []);
+  
+  const handleContinueReading = () => {
+    if (lastReadPage) {
+      navigation.navigate('QuranPageViewer', { initialPageNumber: lastReadPage });
+    }
+  };
+
+  const dismissLastRead = async () => {
+    setLastReadPage(null);
+    await AsyncStorage.removeItem(ASYNC_STORAGE_LAST_READ_PAGE_KEY);
+  };
 
   const handleSelectSurah = (item: Surah) => {
     navigation.navigate('QuranPageViewer', { initialPageNumber: item.pages[0] });
@@ -67,7 +90,7 @@ const QuranIndexScreen: React.FC = () => {
         </Text>
       </View>
       <View style={styles.surahPageContainer}>
-          <BookOpenIcon color={Colors.primary} size={16} />
+          <BookOpenIcon color={Colors.primary} size={RFValue(16)} />
           <Text style={styles.surahPageText}>ص {item.pages[0]}</Text>
       </View>
     </TouchableOpacity>
@@ -90,6 +113,7 @@ const QuranIndexScreen: React.FC = () => {
 
   return (
     <View style={styles.screenContainer}>
+       <AppHeader />
        <View style={styles.searchBarContainer}>
         <TextInput
           style={styles.searchInput}
@@ -99,14 +123,35 @@ const QuranIndexScreen: React.FC = () => {
           placeholderTextColor={Colors.textLight} 
         />
         <View style={styles.searchIconContainer}>
-            <SearchIcon color={Colors.primary} size={20} />
+            <SearchIcon color={Colors.primary} size={RFValue(20)} />
         </View>
       </View>
       <AnyFlatList
+        style={{ flex: 1 }}
         data={filteredSurahs}
         renderItem={renderSurahItem}
         keyExtractor={(item: Surah) => item.id.toString()}
         contentContainerStyle={styles.listContentContainer}
+        ListHeaderComponent={
+          lastReadPage ? (
+            <View style={styles.continueReadingContainer}>
+              <View style={styles.continueReadingTextContainer}>
+                <Text style={styles.continueReadingTitle}>متابعة القراءة</Text>
+                <Text style={styles.continueReadingSubtitle}>
+                  آخر مرة توقفت عند صفحة {lastReadPage}.
+                </Text>
+              </View>
+              <View style={styles.continueButtons}>
+                 <TouchableOpacity style={styles.continueButton} onPress={handleContinueReading}>
+                    <Text style={styles.continueButtonText}>الانتقال للصفحة</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={styles.dismissButton} onPress={dismissLastRead}>
+                    <CloseIcon size={RFValue(18)} color={Colors.primaryLight} />
+                 </TouchableOpacity>
+              </View>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.centeredMessage}>
             <Text style={styles.emptyListText}>لم يتم العثور على سور تطابق بحثك.</Text>
@@ -126,29 +171,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: RFValue(20),
   },
   errorText: {
     color: Colors.error, 
-    fontSize: 16,
+    fontSize: RFValue(16),
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: RFValue(16),
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   retryButton: {
     backgroundColor: Colors.primary, 
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    paddingVertical: RFValue(10),
+    paddingHorizontal: RFValue(20),
+    borderRadius: RFValue(8),
   },
   retryButtonText: {
     color: Colors.white,
-    fontSize: 16,
+    fontSize: RFValue(16),
     fontWeight: 'bold',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-bold',
   },
   searchBarContainer: {
-    padding: 12,
+    padding: RFValue(12),
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.moonlight,
@@ -157,33 +202,80 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: 48,
+    height: RFValue(48),
     backgroundColor: Colors.moonlight, 
-    borderRadius: 24, 
-    paddingHorizontal: 20, 
-    fontSize: 16,
+    borderRadius: RFValue(24), 
+    paddingHorizontal: RFValue(20), 
+    fontSize: RFValue(16),
     textAlign: Platform.OS === 'android' ? 'right' : 'auto',
     color: Colors.primary,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   searchIconContainer: {
       position: 'absolute',
-      left: 25, 
+      left: RFValue(25), 
       top: '50%',
-      transform: [{translateY: -10}] 
+      transform: [{translateY: -RFValue(10)}] 
   },
   listContentContainer: {
-    paddingVertical: 8,
+    paddingVertical: RFValue(8),
+  },
+  continueReadingContainer: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.secondaryLight,
+    padding: RFValue(15),
+    marginHorizontal: RFValue(12),
+    borderRadius: RFValue(12),
+    marginBottom: RFValue(10),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  continueReadingTextContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  continueReadingTitle: {
+    fontSize: RFValue(16),
+    fontWeight: 'bold',
+    color: Colors.primaryDark,
+  },
+  continueReadingSubtitle: {
+    fontSize: RFValue(14),
+    color: Colors.accent,
+    marginTop: RFValue(2),
+  },
+  continueButtons: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+  },
+  continueButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: RFValue(8),
+    paddingHorizontal: RFValue(12),
+    borderRadius: RFValue(8),
+  },
+  continueButtonText: {
+    color: Colors.white,
+    fontWeight: '600',
+  },
+  dismissButton: {
+    padding: RFValue(8),
+    marginLeft: RFValue(10),
   },
   surahItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginVertical: 5,
-    marginHorizontal: 12,
-    borderRadius: 12, 
+    paddingVertical: RFValue(14),
+    paddingHorizontal: RFValue(16),
+    marginVertical: RFValue(5),
+    marginHorizontal: RFValue(12),
+    borderRadius: RFValue(12), 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, 
@@ -191,17 +283,17 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   surahNumberContainer: {
-    width: 44, 
-    height: 44,
-    borderRadius: 22,
+    width: RFValue(44), 
+    height: RFValue(44),
+    borderRadius: RFValue(22),
     backgroundColor: Colors.primary, 
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14, 
+    marginRight: RFValue(14), 
   },
   surahNumberText: {
     color: Colors.white,
-    fontSize: 15,
+    fontSize: RFValue(15),
     fontWeight: 'bold',
   },
   surahInfoContainer: {
@@ -209,42 +301,42 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end', 
   },
   surahNameArabic: {
-    fontSize: 20, 
+    fontSize: RFValue(20), 
     fontWeight: '600',
     color: Colors.arabicText, 
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif-medium'), 
+    fontFamily: 'Amiri-Regular', 
   },
   surahNameEnglish: {
-    fontSize: 14,
+    fontSize: RFValue(14),
     color: Colors.accent, 
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   surahDetails: {
-    fontSize: 12,
+    fontSize: RFValue(12),
     color: Colors.text,
-    marginTop: 3,
+    marginTop: RFValue(3),
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   surahPageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingVertical: RFValue(5),
+    paddingHorizontal: RFValue(10),
     backgroundColor: `rgba(${parseInt(Colors.secondary.slice(1,3),16)}, ${parseInt(Colors.secondary.slice(3,5),16)}, ${parseInt(Colors.secondary.slice(5,7),16)}, 0.15)`, 
-    borderRadius: 8,
+    borderRadius: RFValue(8),
   },
   surahPageText: {
-    fontSize: 14, 
+    fontSize: RFValue(14), 
     color: Colors.accent, 
-    marginLeft: 5, 
+    marginLeft: RFValue(5), 
     fontWeight: '500',
-    fontFamily: Platform.OS === 'web' ? 'Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri' : 'sans-serif'),
+    fontFamily: 'Amiri-Regular',
   },
   emptyListText: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     color: Colors.accent,
     textAlign: 'center',
-    marginTop: 40, 
+    marginTop: RFValue(40), 
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   }
 });

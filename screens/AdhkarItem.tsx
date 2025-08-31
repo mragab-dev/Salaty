@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     color: Colors.arabicText,
     textAlign: 'right',
     marginBottom: RFValue(10),
-    fontFamily: Platform.OS === 'web' ? 'Amiri Quran, Amiri, serif' : (Platform.OS === 'ios' ? 'Amiri Quran' : 'sans-serif-medium'),
+    fontFamily: 'AmiriQuran-Regular',
     lineHeight: RFValue(Platform.OS === 'ios' ? 34 : 32),
   },
   adhkarTranslationText: {

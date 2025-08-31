@@ -52,7 +52,16 @@ export const SparklesIcon: React.FC<IconProps> = ({ color = defaultColor, width 
 
 export const CogIcon: React.FC<IconProps> = ({ color = defaultColor, width = defaultSize, height = defaultSize, size }) => (
   <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
-    <Path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 0015 0m-15 0a7.5 7.5 0 1115 0m-15 0H3m18 0h-1.5m-15.036-7.168A5.963 5.963 0 0121.75 12c0 .399-.033.79-.097 1.173M6.75 12a5.25 5.25 0 0010.5 0M12 21a8.966 8.966 0 006.816-3.036" />
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 20v2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m4.93 4.93 1.41 1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m17.66 17.66 1.41 1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M2 12h2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M20 12h2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m4.93 19.07 1.41-1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m17.66 6.34 1.41-1.41"/>
   </Svg>
 );
 
@@ -65,6 +74,12 @@ export const ChevronDownIcon: React.FC<IconProps> = ({ color = Colors.primary, w
 export const ChevronUpIcon: React.FC<IconProps> = ({ color = Colors.primary, width = defaultSize, height = defaultSize, size }) => ( 
   <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
     <Path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+  </Svg>
+);
+
+export const ChevronRightIcon: React.FC<IconProps> = ({ color = Colors.primary, width = defaultSize, height = defaultSize, size }) => ( 
+  <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
   </Svg>
 );
 
@@ -272,12 +287,41 @@ export const SunsetIcon: React.FC<IconProps> = ({ color = defaultColor, width = 
   </Svg>
 );
 
+export const UserIcon: React.FC<IconProps> = ({ color = Colors.primary, width = defaultSize, height = defaultSize, size }) => (
+    <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
+      <Path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+    </Svg>
+);
+
+export const TrashIcon: React.FC<IconProps> = ({ color = defaultColor, width = defaultSize, height = defaultSize, size }) => (
+  <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.578 0c-.275-.046-.55-.09-.826-.132m-3.478-.397L5.637 5.21a2.25 2.25 0 012.244-2.077h8.236a2.25 2.25 0 012.244 2.077L21.228 5.79m-16.456 0a48.108 48.108 0 013.478-.397m12.578 0c.275.046.55.09.826.132" />
+  </Svg>
+);
+
+export const MicIcon: React.FC<IconProps> = ({ color = Colors.primary, width = defaultSize, height = defaultSize, size }) => (
+  <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size || width} height={size || height}>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 016 0v8.25a3 3 0 01-3 3z" />
+  </Svg>
+);
+  
 // Lucide-React-Native Icons for Tasbih
-import { RotateCcw, Settings, Info, RefreshCw } from 'lucide-react-native';
+import { RotateCcw, Info, RefreshCw, SlidersHorizontal, TrendingUp } from 'lucide-react-native';
 
 // These are wrappers to fit the existing IconProps pattern
 export const SettingsIcon: React.FC<IconProps> = ({ color = Colors.primary, size = 20 }) => (
-  <Settings color={color} size={size} />
+  <Svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={color} width={size} height={size}>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M12 20v2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m4.93 4.93 1.41 1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m17.66 17.66 1.41 1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M2 12h2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="M20 12h2"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m4.93 19.07 1.41-1.41"/>
+    <Path strokeLinecap="round" strokeLinejoin="round" d="m17.66 6.34 1.41-1.41"/>
+  </Svg>
 );
 
 export const RotateCcwIcon: React.FC<IconProps> = ({ color = Colors.white, size = 24 }) => (
@@ -290,4 +334,12 @@ export const InfoIcon: React.FC<IconProps> = ({ color = Colors.white, size = 18 
 
 export const RefreshCwIcon: React.FC<IconProps> = ({ color = Colors.secondary, size = 16 }) => (
     <RefreshCw color={color} size={size} />
+);
+
+export const SlidersHorizontalIcon: React.FC<IconProps> = ({ color = Colors.primary, size = 20 }) => (
+  <SlidersHorizontal color={color} size={size} />
+);
+
+export const TrendingUpIcon: React.FC<IconProps> = ({ color = Colors.primary, size = 20 }) => (
+  <TrendingUp color={color} size={size} />
 );

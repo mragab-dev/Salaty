@@ -9,6 +9,8 @@ import { BookOpenIcon, SparklesIcon, RepeatIcon, ChartBarIcon, SunIcon, MoonIcon
 import moment from 'moment-timezone';
 import 'moment/locale/ar';
 import { Flame, Star } from 'lucide-react-native';
+import { RFValue } from 'react-native-responsive-fontsize';
+import AppHeader from '../components/AppHeader';
 
 moment.locale('ar'); // Set locale to Arabic for all date formatting in this screen
 
@@ -16,7 +18,7 @@ const AnyFlatList = FlatList as any;
 
 // Define a simple Checkmark for completed items
 const Checkmark: React.FC<{ color?: string, size?: number }> = ({ color = Colors.success, size = 24 }) => (
-  <OriginalCheckmarkIcon color={color} size={size} />
+  <OriginalCheckmarkIcon color={color} size={RFValue(size)} />
 );
 
 interface TrackableActivity {
@@ -57,7 +59,7 @@ const WeeklyProgressGrid: React.FC<{ logs: ActivityLog[], dateRange: string[] }>
             {TRACKABLE_ACTIVITIES.map(activity => (
                 <View key={activity.id} style={styles.gridRow}>
                     <View style={styles.gridActivityTitleColumn}>
-                        <activity.icon color={Colors.primary} size={18} />
+                        <activity.icon color={Colors.primary} size={RFValue(18)} />
                     </View>
                     {dateRange.map(date => {
                         const isCompleted = checkActivityCompletion(activity, logs, date);
@@ -194,7 +196,7 @@ const ReportsScreen: React.FC = () => {
     return (
       <View style={[styles.activityRow, isCompleted && styles.activityRowCompleted]}>
         <View style={styles.activityInfo}>
-          <IconComponent color={isCompleted ? Colors.success : Colors.primary} size={24} />
+          <IconComponent color={isCompleted ? Colors.success : Colors.primary} size={RFValue(24)} />
           <View style={styles.activityTitleContainer}>
             <Text style={[styles.activityTitle, isCompleted && styles.activityTitleCompleted]}>{item.title}</Text>
             {detailsContent}
@@ -204,11 +206,11 @@ const ReportsScreen: React.FC = () => {
             {currentStreak > 1 && (
                 <View style={styles.streakIndicator}>
                     <Text style={styles.streakText}>{currentStreak}</Text>
-                    <Flame size={16} color={Colors.accent} />
+                    <Flame size={RFValue(16)} color={Colors.accent} />
                 </View>
             )}
             {isCompleted ? (
-              <Checkmark color={Colors.success} size={28} />
+              <Checkmark color={Colors.success} size={RFValue(28)} />
             ) : (
               <View style={styles.pendingIndicator} />
             )}
@@ -223,11 +225,7 @@ const ReportsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <ChartBarIcon color={Colors.secondary} size={28}/>
-        <Text style={styles.headerTitle}>لوحة الإنجازات</Text>
-      </View>
-
+      <AppHeader />
       <WeeklyProgressGrid logs={allLogs} dateRange={dateRange} />
 
       <View style={styles.dateSelectorContainer}>
@@ -260,39 +258,39 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: RFValue(20),
   },
   headerContainer: {
     backgroundColor: Colors.primary,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
+    paddingVertical: RFValue(20),
+    paddingHorizontal: RFValue(20),
     alignItems: 'center',
     flexDirection: 'row-reverse',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: RFValue(22),
     color: Colors.secondary,
     fontWeight: 'bold',
-    marginRight: 10,
+    marginRight: RFValue(10),
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-bold',
   },
   dateSelectorContainer: {
-    paddingVertical: 10,
+    paddingVertical: RFValue(10),
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.moonlight,
   },
   dateSelectorContent: {
-    paddingHorizontal: 10,
+    paddingHorizontal: RFValue(10),
     alignItems: 'center',
   },
   dateButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
+    paddingVertical: RFValue(8),
+    paddingHorizontal: RFValue(15),
+    borderRadius: RFValue(20),
     backgroundColor: Colors.moonlight,
-    marginHorizontal: 5,
+    marginHorizontal: RFValue(5),
     alignItems: 'center',
   },
   dateButtonSelected: {
@@ -304,30 +302,30 @@ const styles = StyleSheet.create({
   },
   dateButtonText: {
     color: Colors.primary,
-    fontSize: 14,
+    fontSize: RFValue(14),
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   dateButtonSubText: {
     color: Colors.accent,
-    fontSize: 11,
+    fontSize: RFValue(11),
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   dateButtonTextSelected: {
     color: Colors.white,
   },
   listContainer: {
-    padding: 15,
+    padding: RFValue(15),
   },
   activityRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginBottom: 10,
+    paddingVertical: RFValue(15),
+    paddingHorizontal: RFValue(20),
+    borderRadius: RFValue(10),
+    marginBottom: RFValue(10),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -346,11 +344,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityTitleContainer: {
-    marginRight: 12,
+    marginRight: RFValue(12),
     flexShrink: 1, // To prevent pushing content out
   },
   activityTitle: {
-    fontSize: 16,
+    fontSize: RFValue(16),
     color: Colors.text,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
@@ -358,14 +356,14 @@ const styles = StyleSheet.create({
     color: Colors.success,
   },
   detailsContainer: {
-    marginTop: 4,
+    marginTop: RFValue(4),
   },
   activityDetailText: {
-    fontSize: 13,
+    fontSize: RFValue(13),
     color: Colors.textLight,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     textAlign: 'right',
-    lineHeight: 18,
+    lineHeight: RFValue(18),
   },
   activityStatus: {
     flexDirection: 'row-reverse',
@@ -374,39 +372,39 @@ const styles = StyleSheet.create({
   streakIndicator: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    marginRight: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    marginRight: RFValue(10),
+    paddingHorizontal: RFValue(6),
+    paddingVertical: RFValue(2),
+    borderRadius: RFValue(10),
     backgroundColor: `rgba(200, 120, 40, 0.1)`,
   },
   streakText: {
     color: Colors.accent,
-    fontSize: 14,
+    fontSize: RFValue(14),
     fontWeight: 'bold',
-    marginRight: 4,
+    marginRight: RFValue(4),
   },
   pendingIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: RFValue(24),
+    height: RFValue(24),
+    borderRadius: RFValue(12),
     borderWidth: 2,
     borderColor: Colors.grayMedium,
     opacity: 0.5,
   },
   emptyText: {
-    fontSize: 17,
+    fontSize: RFValue(17),
     color: Colors.accent,
     textAlign: 'center',
-    marginTop: 30,
+    marginTop: RFValue(30),
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
   },
   // Weekly Grid Styles
   weeklyGridContainer: {
     backgroundColor: Colors.primary,
-    padding: 10,
-    margin: 15,
-    borderRadius: 10,
+    padding: RFValue(10),
+    margin: RFValue(15),
+    borderRadius: RFValue(10),
   },
   gridRow: {
     flexDirection: 'row-reverse',
@@ -414,10 +412,10 @@ const styles = StyleSheet.create({
   },
   gridHeaderRow: {
     flexDirection: 'row-reverse',
-    marginBottom: 5,
+    marginBottom: RFValue(5),
   },
   gridActivityTitleColumn: {
-    width: 30,
+    width: RFValue(30),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -425,19 +423,19 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     color: Colors.moonlight,
-    fontSize: 12,
+    fontSize: RFValue(12),
     fontWeight: 'bold',
   },
   gridCell: {
     flex: 1,
-    height: 25,
+    height: RFValue(25),
     alignItems: 'center',
     justifyContent: 'center',
   },
   completedDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: RFValue(10),
+    height: RFValue(10),
+    borderRadius: RFValue(5),
     backgroundColor: Colors.secondary,
   }
 });

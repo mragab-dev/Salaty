@@ -17,11 +17,11 @@ const QiblaCompass: React.FC<QiblaCompassProps> = ({ heading, qiblaDirection }) 
       // The angle for the needle is the difference between the Qibla direction and the phone's heading
       const needleRotation = qiblaDirection - heading;
 
-      // Use Animated.timing for a smooth transition
-      Animated.timing(rotationAnim, {
+      // Use Animated.spring for a smoother, more natural, and dampened transition
+      Animated.spring(rotationAnim, {
         toValue: needleRotation,
-        duration: 300,
-        easing: Easing.linear,
+        friction: 6, // Controls bounciness/damping. Higher value means less bouncy.
+        tension: 40, // Controls speed. Lower value is slower.
         useNativeDriver: true, // Use native driver for transform animations
       }).start();
     }
